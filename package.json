@@ -1,0 +1,32 @@
+{
+  "name": "gladys-eufy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Eufy Security (cameras, doorbells, locks, sensors) external integration for Gladys Assistant.",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node --test",
+    "coverage": "node --test --experimental-test-coverage --test-coverage-lines=85 --test-coverage-branches=75 --test-coverage-exclude='test/**'"
+  },
+  "engines": {
+    "node": ">=24.5.0"
+  },
+  "dependencies": {
+    "@gladysassistant/integration-sdk": "^0.14.0",
+    "@mega-yfue/eufy-sdk": "0.4.0",
+    "jpeg-js": "^0.4.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.8"
+  },
+  "license": "Apache-2.0"
+}

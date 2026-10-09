@@ -1,0 +1,324 @@
+{
+  "manifest_version": 1,
+  "type": "device",
+  "name": "eufy Security",
+  "description": {
+    "en": "eufy Security cameras, doorbells, smart locks, sensors and HomeBase guard mode.",
+    "fr": "Caméras, sonnettes, serrures, capteurs et mode d'armement HomeBase eufy Security."
+  },
+  "version": "1.0.0",
+  "docker_image": "ghcr.io/cicoub13/gladys-eufy:1.0.0",
+  "gladys_version": ">=5.1.0",
+  "categories": ["security"],
+  "transports": ["cloud"],
+  "config_schema": [
+    {
+      "key": "intro",
+      "type": "section",
+      "label": {
+        "en": "eufy account",
+        "fr": "Compte eufy"
+      },
+      "description": {
+        "en": "Use a dedicated eufy account: create one, then share your devices with it from the eufy Security app (Settings > Family & Guests, with admin rights to control locks and guard mode). eufy keeps a single session per account, so signing in with your main account would sign you out of the app. The country must be the one of the eufy account.",
+        "fr": "Utilisez un compte eufy dédié : créez-en un, puis partagez-lui vos appareils depuis l'application eufy Security (Paramètres > Famille et invités, avec les droits administrateur pour piloter serrures et mode d'armement). eufy ne garde qu'une session par compte : se connecter avec votre compte principal vous déconnecterait de l'application. Le pays doit être celui du compte eufy."
+      },
+      "links": [
+        {
+          "url": "https://github.com/cicoub13/gladys-eufy",
+          "label": {
+            "en": "Documentation",
+            "fr": "Documentation"
+          }
+        }
+      ]
+    },
+    {
+      "key": "email",
+      "type": "string",
+      "label": {
+        "en": "Email",
+        "fr": "Email"
+      },
+      "placeholder": {
+        "en": "you+gladys@example.com",
+        "fr": "vous+gladys@exemple.fr"
+      },
+      "required": true
+    },
+    {
+      "key": "password",
+      "type": "secret",
+      "label": {
+        "en": "Password",
+        "fr": "Mot de passe"
+      },
+      "required": true
+    },
+    {
+      "key": "country",
+      "type": "string",
+      "label": {
+        "en": "Country (2-letter code)",
+        "fr": "Pays (code à 2 lettres)"
+      },
+      "placeholder": {
+        "en": "FR",
+        "fr": "FR"
+      },
+      "default": "FR",
+      "required": true
+    },
+    {
+      "key": "login_intro",
+      "type": "section",
+      "label": {
+        "en": "Only when the connection status asks for it",
+        "fr": "Uniquement si le statut de connexion le demande"
+      },
+      "description": {
+        "en": "eufy may ask for a verification code (sent by email) or for a captcha at the first sign-in. Type the answer in the matching field, then save: the integration hands it to the pending sign-in and empties the field. Captcha: the image is written in the Logs of the integration, on a line starting with data:image/png;base64, — paste that line into the address bar of your browser to see it.",
+        "fr": "eufy peut demander un code de vérification (envoyé par email) ou un captcha à la première connexion. Saisissez la réponse dans le champ correspondant, puis enregistrez : l'intégration la transmet à la connexion en attente et vide le champ. Captcha : l'image est écrite dans les Logs de l'intégration, sur une ligne commençant par data:image/png;base64, — collez cette ligne dans la barre d'adresse de votre navigateur pour la voir."
+      }
+    },
+    {
+      "key": "verification_code",
+      "type": "string",
+      "label": {
+        "en": "Verification code",
+        "fr": "Code de vérification"
+      },
+      "required": false
+    },
+    {
+      "key": "captcha_answer",
+      "type": "string",
+      "label": {
+        "en": "Captcha answer",
+        "fr": "Réponse captcha"
+      },
+      "required": false
+    }
+  ],
+  "actions": [
+    {
+      "key": "test_connection",
+      "label": {
+        "en": "Test the connection",
+        "fr": "Tester la connexion"
+      },
+      "timeout_seconds": 60
+    },
+    {
+      "key": "dump_devices",
+      "label": {
+        "en": "List the raw devices",
+        "fr": "Lister les appareils bruts"
+      },
+      "description": {
+        "en": "Writes the model and the capabilities of every eufy device to the integration logs, to help support a device that is not mapped yet.",
+        "fr": "Écrit le modèle et les capacités de chaque appareil eufy dans les logs de l'intégration, pour aider à prendre en charge un appareil non encore mappé."
+      },
+      "timeout_seconds": 60
+    }
+  ],
+  "scene_triggers": [
+    {
+      "key": "doorbell_pressed",
+      "label": {
+        "en": "eufy doorbell pressed",
+        "fr": "Sonnette eufy pressée"
+      },
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Doorbell",
+            "fr": "Sonnette"
+          }
+        }
+      ],
+      "variables": [
+        {
+          "key": "device_name",
+          "type": "string",
+          "label": {
+            "en": "Device name",
+            "fr": "Nom de l'appareil"
+          }
+        }
+      ]
+    },
+    {
+      "key": "motion_detected",
+      "label": {
+        "en": "eufy motion detected",
+        "fr": "Mouvement détecté par eufy"
+      },
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Device",
+            "fr": "Appareil"
+          }
+        },
+        {
+          "key": "target",
+          "type": "multi_select",
+          "label": {
+            "en": "Detected",
+            "fr": "Détecté"
+          },
+          "options": [
+            {
+              "value": "motion",
+              "label": {
+                "en": "Motion",
+                "fr": "Mouvement"
+              }
+            },
+            {
+              "value": "person",
+              "label": {
+                "en": "Person",
+                "fr": "Personne"
+              }
+            },
+            {
+              "value": "stranger",
+              "label": {
+                "en": "Stranger",
+                "fr": "Inconnu"
+              }
+            },
+            {
+              "value": "vehicle",
+              "label": {
+                "en": "Vehicle",
+                "fr": "Véhicule"
+              }
+            },
+            {
+              "value": "pet",
+              "label": {
+                "en": "Pet",
+                "fr": "Animal"
+              }
+            }
+          ]
+        }
+      ],
+      "variables": [
+        {
+          "key": "device_name",
+          "type": "string",
+          "label": {
+            "en": "Device name",
+            "fr": "Nom de l'appareil"
+          }
+        },
+        {
+          "key": "target",
+          "type": "string",
+          "label": {
+            "en": "Detected",
+            "fr": "Détecté"
+          }
+        }
+      ]
+    },
+    {
+      "key": "package_delivered",
+      "label": {
+        "en": "eufy package delivered",
+        "fr": "Colis livré (eufy)"
+      },
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Doorbell",
+            "fr": "Sonnette"
+          }
+        }
+      ],
+      "variables": [
+        {
+          "key": "device_name",
+          "type": "string",
+          "label": {
+            "en": "Device name",
+            "fr": "Nom de l'appareil"
+          }
+        }
+      ]
+    },
+    {
+      "key": "alarm_triggered",
+      "label": {
+        "en": "eufy alarm triggered",
+        "fr": "Alarme eufy déclenchée"
+      },
+      "fields": [
+        {
+          "key": "device",
+          "type": "select",
+          "source": "devices",
+          "label": {
+            "en": "Device",
+            "fr": "Appareil"
+          }
+        },
+        {
+          "key": "phase",
+          "type": "multi_select",
+          "label": {
+            "en": "Phase",
+            "fr": "Phase"
+          },
+          "options": [
+            {
+              "value": "triggered",
+              "label": {
+                "en": "Triggered",
+                "fr": "Déclenchée"
+              }
+            },
+            {
+              "value": "delayed",
+              "label": {
+                "en": "Delayed (countdown)",
+                "fr": "Différée (compte à rebours)"
+              }
+            }
+          ]
+        }
+      ],
+      "variables": [
+        {
+          "key": "device_name",
+          "type": "string",
+          "label": {
+            "en": "Device name",
+            "fr": "Nom de l'appareil"
+          }
+        },
+        {
+          "key": "phase",
+          "type": "string",
+          "label": {
+            "en": "Phase",
+            "fr": "Phase"
+          }
+        }
+      ]
+    }
+  ]
+}
