@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createHandlers } from '../src/handlers.js';
+import { createHandlers, SHUTDOWN_TIMEOUT_MS } from '../src/handlers.js';
 import {
   makeFakeClient,
   makeFakeDevice,
@@ -362,6 +362,18 @@ test('shutdown closes the eufy session', async () => {
   await handlers.gladysConnected();
   await handlers.shutdown();
   assert.equal(clients[0].calls.disconnect, 1);
+});
+
+test('shutdown gives up on a connection that does not close', async () => {
+  const { handlers, clients, scheduleTimer } = setup();
+  await handlers.gladysConnected();
+  clients[0].disconnect = () => new Promise(() => {});
+  const shutdown = handlers.shutdown();
+  await flush();
+  const timeout = scheduleTimer.active().find((timer) => timer.delayMs === SHUTDOWN_TIMEOUT_MS);
+  assert.ok(timeout);
+  await timeout.fn();
+  await shutdown;
 });
 
 test('setValue is routed to the device', async () => {

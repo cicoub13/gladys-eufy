@@ -16,6 +16,7 @@ import { connected as connectedMessage, MISSING_CONFIG } from './status.js';
 
 const REFRESH_DEBOUNCE_MS = 2_000;
 const PUBLISH_RETRY_MS = 60_000;
+export const SHUTDOWN_TIMEOUT_MS = 5_000;
 
 const defaultScheduleTimer = (fn, delayMs) => {
   const timer = setTimeout(fn, delayMs);
@@ -403,10 +404,23 @@ export function createHandlers({
       }
     },
 
+    // Docker kills the container 10 s after SIGTERM: give up closing before
+    // that, so that the SDK still disconnects from Gladys and exits cleanly.
     async shutdown() {
       cancelRefresh?.();
-      await events.stop();
-      await session.stop();
+      let cancelTimeout;
+      const timeout = new Promise((resolve) => {
+        cancelTimeout = scheduleTimer(() => {
+          logger.warn('The eufy connection did not close in time');
+          resolve();
+        }, SHUTDOWN_TIMEOUT_MS);
+      });
+      const close = async () => {
+        await events.stop();
+        await session.stop();
+      };
+      await Promise.race([close(), timeout]);
+      cancelTimeout();
     },
   };
 }
