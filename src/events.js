@@ -19,6 +19,10 @@ import { toGladysImage } from './image.js';
 
 export const MOTION_RESET_MS = 30_000;
 export const RING_RESET_MS = 5_000;
+export const RESET_RETRY_MS = 30_000;
+
+/** Pulse features: 0 unless an event is in progress. */
+const PULSE_KEYS = ['ring', 'motion'];
 export const SNAPSHOT_FIRST_DELAY_MS = 1_000;
 export const SNAPSHOT_RETRY_DELAY_MS = 2_000;
 export const SNAPSHOT_ATTEMPTS = 4;
@@ -68,17 +72,20 @@ export function createEventBridge({
 
   const hasFeature = (dev, key) => featuresOf(dev).some((spec) => spec.key === key);
 
+  /** Resolves with whether Gladys has the value. */
   async function publish(featureId, value, { force = false } = {}) {
     const serialized = JSON.stringify(value);
     if (!force && published.get(featureId) === serialized) {
-      return;
+      return true;
     }
     try {
       await gladys.publishState(featureId, value);
       // Recorded only once accepted, so a failed publish is retried next time.
       published.set(featureId, serialized);
+      return true;
     } catch (err) {
       logger.warn(`Failed to publish the state of ${featureId}:`, err?.message ?? err);
+      return false;
     }
   }
 
@@ -88,19 +95,33 @@ export function createEventBridge({
     for (const { key, value } of readStates(dev)) {
       await publish(ids.feature(key), value);
     }
+    // A pulse without an event in progress is 0: this also clears a 1 left by
+    // a reset that failed, or that a restart cancelled.
+    for (const key of PULSE_KEYS) {
+      const featureId = ids.feature(key);
+      if (hasFeature(dev, key) && !resets.has(featureId)) {
+        await publish(featureId, 0);
+      }
+    }
+  }
+
+  function scheduleReset(featureId, delayMs) {
+    resets.get(featureId)?.();
+    resets.set(
+      featureId,
+      scheduleTimer(async () => {
+        resets.delete(featureId);
+        if (!(await publish(featureId, 0)) && !resets.has(featureId)) {
+          scheduleReset(featureId, RESET_RETRY_MS);
+        }
+      }, delayMs),
+    );
   }
 
   /** Set a binary feature to 1, and back to 0 once the event is over. */
   async function pulse(dev, key, resetMs) {
     const featureId = deviceIds(gladys, dev.sn).feature(key);
-    resets.get(featureId)?.();
-    resets.set(
-      featureId,
-      scheduleTimer(() => {
-        resets.delete(featureId);
-        return publish(featureId, 0);
-      }, resetMs),
-    );
+    scheduleReset(featureId, resetMs);
     await publish(featureId, 1, { force: true });
   }
 
@@ -245,11 +266,14 @@ export function createEventBridge({
       published.clear();
     },
 
-    stop() {
+    /** Cancel the pending resets, and publish their 0 right away. */
+    async stop() {
+      const pending = [...resets.keys()];
       for (const cancel of resets.values()) {
         cancel();
       }
       resets.clear();
+      await Promise.all(pending.map((featureId) => publish(featureId, 0)));
     },
   };
 }

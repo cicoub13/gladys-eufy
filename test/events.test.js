@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   createEventBridge,
   MOTION_RESET_MS,
+  RESET_RETRY_MS,
   RING_RESET_MS,
   SNAPSHOT_ATTEMPTS,
 } from '../src/events.js';
@@ -208,9 +209,32 @@ test('forget makes a device publish everything again', async () => {
   assert.deepEqual(gladys.statesOf(`${DOORBELL}:battery`), [80, 80]);
 });
 
-test('stop cancels the pending resets', async () => {
-  const { client, bridge, scheduleTimer } = await setup();
+test('stop cancels the pending resets and publishes their 0 at once', async () => {
+  const { gladys, client, bridge, scheduleTimer } = await setup();
   await client.fire('motion', { deviceSn: 'D1' });
-  bridge.stop();
+  await bridge.stop();
   assert.equal(scheduleTimer.active().length, 0);
+  assert.deepEqual(gladys.statesOf(`${DOORBELL}:motion`), [1, 0]);
+});
+
+test('a failed reset is retried', async () => {
+  const { gladys, client, scheduleTimer } = await setup();
+  await client.fire('doorbellPress', { deviceSn: 'D1' });
+  gladys.publishError = new Error('Gladys down');
+  await scheduleTimer.runAll();
+  gladys.publishError = null;
+  assert.equal(scheduleTimer.active()[0].delayMs, RESET_RETRY_MS);
+  await scheduleTimer.runAll();
+  assert.deepEqual(gladys.statesOf(`${DOORBELL}:ring`), [1, 0]);
+});
+
+test('the device states set the pulses back to 0, unless an event is in progress', async () => {
+  const { gladys, client, bridge, doorbell } = await setup();
+  await bridge.publishDeviceStates(doorbell);
+  assert.deepEqual(gladys.statesOf(`${DOORBELL}:ring`), [0]);
+  assert.deepEqual(gladys.statesOf(`${DOORBELL}:motion`), [0]);
+
+  await client.fire('motion', { deviceSn: 'D1' });
+  await bridge.publishDeviceStates(doorbell);
+  assert.deepEqual(gladys.statesOf(`${DOORBELL}:motion`), [0, 1]);
 });

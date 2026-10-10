@@ -191,7 +191,7 @@ export function createHandlers({
 
     if (!isComplete(config)) {
       account = config;
-      events.stop();
+      await events.stop();
       registry.clear();
       held.clear();
       await session.stop();
@@ -382,7 +382,7 @@ export function createHandlers({
 
     async shutdown() {
       cancelRefresh?.();
-      events.stop();
+      await events.stop();
       await session.stop();
     },
   };

@@ -21,6 +21,9 @@ are in `CHANGELOG.md`.
   time: two `applyConfig` at once built two eufy clients.
 - Push, not poll: `should_poll: false`, no `onPoll`. State events re-read the device through the
   capability getters (`mapping.readStates`) and `events.publish` only sends changed values.
+- Pulses (`ring`, `motion`) have no `read`: `publishDeviceStates` publishes 0 for them unless a
+  reset is pending, a failed reset is retried, and `events.stop()` publishes the pending 0s, so
+  none stays at 1.
 - States published before the user creates the device are dropped by Gladys:
   `deviceCreated` → `events.forget(sn)` → republish.
 
