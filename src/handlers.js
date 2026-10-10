@@ -8,7 +8,7 @@
 
 import { ANSWER_KEYS, isComplete, normalizeConfig, sameAccount } from './config.js';
 import { createCommands } from './commands.js';
-import { createEventBridge } from './events.js';
+import { createEventBridge, SNAPSHOT_ATTEMPTS, SNAPSHOT_RETRY_DELAY_MS } from './events.js';
 import { buildDevice } from './mapping.js';
 import { toGladysImage } from './image.js';
 import { createSession, PHASE } from './session.js';
@@ -348,16 +348,25 @@ export function createHandlers({
       if (typeof camera?.snapshotStored !== 'function') {
         throw new Error('Unknown eufy camera (is the integration connected?)');
       }
-      try {
-        return toGladysImage(await camera.snapshotStored());
-      } catch (err) {
-        if (err?.reason) {
-          throw new Error(
-            `No eufy image available yet (${err.reason}): an image arrives with the next motion or doorbell event`,
-            { cause: err },
-          );
+      for (let attempt = 1; ; attempt += 1) {
+        try {
+          return toGladysImage(await camera.snapshotStored());
+        } catch (err) {
+          // A scene sending the image of a doorbell press asks for it while
+          // the thumbnail still downloads: worth waiting for, within the 15 s
+          // Gladys gives.
+          if (err?.reason === 'pending' && attempt < SNAPSHOT_ATTEMPTS) {
+            await sleep(SNAPSHOT_RETRY_DELAY_MS);
+            continue;
+          }
+          if (err?.reason) {
+            throw new Error(
+              `No eufy image available yet (${err.reason}): an image arrives with the next motion or doorbell event`,
+              { cause: err },
+            );
+          }
+          throw err;
         }
-        throw err;
       }
     },
 

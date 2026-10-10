@@ -4,7 +4,7 @@ Bring your eufy Security devices into Gladys: cameras, video doorbells, smart lo
 
 ## Features
 
-- **Cameras and doorbells**: the image shown in the dashboard camera box is the thumbnail eufy sends with each detection or doorbell press.
+- **Cameras and doorbells**: the image shown in the dashboard camera box is the thumbnail eufy sends with each detection or doorbell press. A scene that sends the camera image on a doorbell press waits a few seconds for it to arrive.
 - **Doorbell**: a press sets the "doorbell" feature to 1, back to 0 after 5 s.
 - **Motion**: each detection (motion, person, stranger, vehicle, pet, on cameras and PIR sensors) sets the motion sensor to 1, back to 0 after 30 s without a new one.
 - **Locks**: lock and unlock from Gladys, battery level.

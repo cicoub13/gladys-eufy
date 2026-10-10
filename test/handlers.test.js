@@ -183,6 +183,19 @@ test('onGetImage answers the last thumbnail of the camera', async () => {
   );
 });
 
+test('onGetImage waits for a thumbnail still downloading', async () => {
+  const devices = makeDevices();
+  const pending = () => Object.assign(new Error('downloading'), { reason: 'pending' });
+  devices[0].snapshots = [pending(), pending(), await makeJpeg()];
+  const { handlers } = setup({ devices });
+  await handlers.gladysConnected();
+  const camera = { params: [{ name: 'serial_number', value: 'D1' }] };
+  assert.ok((await handlers.getImage(camera)).startsWith('image/jpg;base64,'));
+
+  devices[0].snapshots = [pending()];
+  await assert.rejects(handlers.getImage(camera), /No eufy image available yet \(pending\)/);
+});
+
 test('a scan republishes the devices, only once connected', async () => {
   const { gladys, handlers } = setup({ loginResults: [{ status: '2fa' }] });
   await handlers.gladysConnected();

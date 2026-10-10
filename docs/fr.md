@@ -4,7 +4,7 @@ Intégrez vos appareils eufy Security dans Gladys : caméras, sonnettes vidéo, 
 
 ## Fonctionnalités
 
-- **Caméras et sonnettes** : l'image publiée est la miniature envoyée par eufy à chaque détection ou appui sur la sonnette. Elle s'affiche dans la boîte caméra du tableau de bord.
+- **Caméras et sonnettes** : l'image publiée est la miniature envoyée par eufy à chaque détection ou appui sur la sonnette. Elle s'affiche dans la boîte caméra du tableau de bord. Une scène qui envoie l'image de la caméra sur un appui sonnette attend quelques secondes son arrivée.
 - **Sonnette** : un appui passe la fonctionnalité « sonnette » à 1, puis elle revient à 0 au bout de 5 s.
 - **Mouvement** : chaque détection passe le capteur de mouvement à 1, puis il revient à 0 au bout de 30 s sans nouvelle détection. Sont concernés les mouvements, personnes, inconnus, véhicules et animaux, sur les caméras comme sur les capteurs PIR.
 - **Serrures** : verrouiller et déverrouiller depuis Gladys, avec leur niveau de batterie.
