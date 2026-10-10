@@ -16,7 +16,7 @@ const HOMEBASE = { external_id: 'ext:eufy-test:eufy:H1' };
 const ARMING_FEATURE = { external_id: 'ext:eufy-test:eufy:H1:arming' };
 
 function setup({ timeoutMs } = {}) {
-  const gladys = makeFakeGladys();
+  const gladys = makeFakeGladys({ created: ['L1', 'H1'] });
   const lock = makeFakeDevice({ sn: 'L1', capabilities: ['lock'], values: { locked: false } });
   const homebase = makeFakeDevice({ sn: 'H1', capabilities: ['arming', 'siren'] });
   const registry = new Map([

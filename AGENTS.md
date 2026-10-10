@@ -24,6 +24,8 @@ are in `CHANGELOG.md`.
 - Pulses (`ring`, `motion`) have no `read`: `publishDeviceStates` publishes 0 for them unless a
   reset is pending, a failed reset is retried, and `events.stop()` publishes the pending 0s, so
   none stays at 1.
+- States and images of a device the user did not create (not in `gladys.devices`) are skipped:
+  Gladys drops the states (still counting them in its rate limit) and refuses the images.
 - States published before the user creates the device are dropped by Gladys:
   `deviceCreated` → `events.forget(sn)` → republish.
 

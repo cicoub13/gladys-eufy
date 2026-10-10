@@ -72,8 +72,20 @@ export function createEventBridge({
 
   const hasFeature = (dev, key) => featuresOf(dev).some((spec) => spec.key === key);
 
-  /** Resolves with whether Gladys has the value. */
+  // Gladys drops the states of a device the user did not create (they still
+  // count in its rate limit) and refuses its images: they are skipped, and
+  // `forget()` republishes everything once the device is created.
+  const created = (externalId) =>
+    gladys.devices.some(
+      (device) =>
+        externalId === device.external_id || externalId.startsWith(`${device.external_id}:`),
+    );
+
+  /** Resolves with whether Gladys has the value (or does not want it). */
   async function publish(featureId, value, { force = false } = {}) {
+    if (!created(featureId)) {
+      return true;
+    }
     const serialized = JSON.stringify(value);
     if (!force && published.get(featureId) === serialized) {
       return true;
@@ -142,7 +154,8 @@ export function createEventBridge({
    * arrives, so it may still be pending when the event fires.
    */
   async function publishThumbnail(dev) {
-    if (!hasFeature(dev, 'image') || fetching.has(dev.sn)) {
+    const deviceId = deviceIds(gladys, dev.sn).device;
+    if (!hasFeature(dev, 'image') || !created(deviceId) || fetching.has(dev.sn)) {
       return;
     }
     fetching.add(dev.sn);
@@ -155,7 +168,7 @@ export function createEventBridge({
             return;
           }
           const jpeg = await camera.snapshotStored();
-          await gladys.publishCameraImage(deviceIds(gladys, dev.sn).device, toGladysImage(jpeg));
+          await gladys.publishCameraImage(deviceId, toGladysImage(jpeg));
           return;
         } catch (err) {
           if (err?.reason === 'pending' && attempt < SNAPSHOT_ATTEMPTS) {

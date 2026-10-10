@@ -42,9 +42,10 @@ export function makeRecordingLogger() {
 }
 
 /**
- * Fake GladysIntegration recording every call.
+ * Fake GladysIntegration recording every call. `created` lists the serial
+ * numbers of the eufy devices the user created (`gladys.devices`).
  */
-export function makeFakeGladys({ config = {} } = {}) {
+export function makeFakeGladys({ config = {}, created = [] } = {}) {
   const calls = {
     discovered: [],
     states: [],
@@ -56,6 +57,9 @@ export function makeFakeGladys({ config = {} } = {}) {
   return {
     calls,
     config,
+    devices: created.map((sn) => ({
+      external_id: externalIdHelpers.externalIds('eufy', sn).device,
+    })),
     /** Set to an Error to make the next publications reject. */
     publishError: null,
     ...externalIdHelpers,

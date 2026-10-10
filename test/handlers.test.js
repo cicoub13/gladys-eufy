@@ -27,7 +27,7 @@ function makeDevices() {
 }
 
 function setup({ config = ACCOUNT, loginResults, devices = makeDevices() } = {}) {
-  const gladys = makeFakeGladys({ config });
+  const gladys = makeFakeGladys({ config, created: devices.map((dev) => dev.sn) });
   const clients = [];
   const scheduleTimer = makeFakeTimer();
   const handlers = createHandlers({

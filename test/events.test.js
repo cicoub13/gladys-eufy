@@ -21,7 +21,7 @@ const DOORBELL = 'ext:eufy-test:eufy:D1';
 const SENSOR = 'ext:eufy-test:eufy:S1';
 
 async function setup() {
-  const gladys = makeFakeGladys();
+  const gladys = makeFakeGladys({ created: ['D1', 'S1'] });
   const doorbell = makeFakeDevice({
     sn: 'D1',
     name: 'Front door',
@@ -142,7 +142,7 @@ test('a contact change publishes the new value only once', async () => {
 });
 
 test('commandUnconfirmed republishes what the device actually reports', async () => {
-  const gladys = makeFakeGladys();
+  const gladys = makeFakeGladys({ created: ['L1'] });
   const lock = makeFakeDevice({ sn: 'L1', capabilities: ['lock'], values: { locked: true } });
   const bridge = createEventBridge({
     gladys,
@@ -207,6 +207,22 @@ test('forget makes a device publish everything again', async () => {
   bridge.forget('D1');
   await bridge.publishDeviceStates(doorbell);
   assert.deepEqual(gladys.statesOf(`${DOORBELL}:battery`), [80, 80]);
+});
+
+test('nothing is published for a device the user did not create', async () => {
+  const { gladys, client, bridge, doorbell, scheduleTimer } = await setup();
+  gladys.devices = [{ external_id: `${DOORBELL}0` }];
+  await client.fire('motion', { deviceSn: 'D1' });
+  await scheduleTimer.runAll();
+  await bridge.publishDeviceStates(doorbell);
+  assert.deepEqual(gladys.calls.states, []);
+  assert.deepEqual(gladys.calls.images, []);
+  assert.equal(gladys.calls.sceneEvents.length, 1, 'scene events do not need a device');
+
+  gladys.devices.push({ external_id: DOORBELL });
+  bridge.forget('D1');
+  await bridge.publishDeviceStates(doorbell);
+  assert.deepEqual(gladys.statesOf(`${DOORBELL}:battery`), [80]);
 });
 
 test('stop cancels the pending resets and publishes their 0 at once', async () => {
