@@ -32,6 +32,17 @@ Intégrez vos appareils eufy Security dans Gladys : caméras, sonnettes vidéo, 
 
 Le bouton **Tester la connexion** indique l'état et le nombre d'appareils trouvés. **Lister les appareils bruts** écrit le modèle et les capacités de chaque appareil dans les logs : c'est utile pour signaler un appareil non pris en charge.
 
+## Dépannage
+
+- **Connecté, mais aucun appareil** : les appareils ne sont pas partagés avec le compte dédié, ou l'invitation n'a pas été acceptée. Partagez-les depuis l'application eufy Security de votre compte principal, connectez-vous une fois avec le compte dédié dans l'application pour accepter, puis cliquez sur **Tester la connexion**.
+- **Code de vérification non reçu, ou captcha illisible** : enregistrez de nouveau le formulaire avec le champ vide, eufy en envoie un nouveau.
+- **« eufy a refusé le code de vérification »** : le code était erroné ou expiré. Enregistrez de nouveau le formulaire avec le champ vide pour en recevoir un nouveau.
+- **« Le compte eufy est temporairement bloqué »** : trop de tentatives. Patientez sans enregistrer le formulaire (chaque tentative prolonge le blocage), puis enregistrez-le de nouveau.
+- **« Connecté à eufy, mais les événements temps réel n'ont pas pu démarrer »** : l'intégration réessaie d'elle-même, avec un délai croissant. Si cela dure, vérifiez l'accès à internet du serveur Gladys.
+- **Déverrouillage ou désarmement refusé** : activez **Autoriser le déverrouillage depuis Gladys** ou **Autoriser le désarmement depuis Gladys** dans la configuration.
+- **Pas d'image de caméra, ou une image ancienne** : une image n'arrive qu'avec un événement de mouvement ou de sonnette. Une scène qui envoie l'image l'attend quelques secondes.
+- **Un appareil est absent** : utilisez **Lister les appareils bruts** et ouvrez une issue avec ce qu'elle écrit. Ce contenu comprend les numéros de série de vos appareils : anonymisez-les avant de le partager.
+
 ## Limites
 
 - **Pas de vidéo en direct** : Gladys n'affiche que des images fixes.

@@ -32,6 +32,17 @@ Bring your eufy Security devices into Gladys: cameras, video doorbells, smart lo
 
 **Test the connection** shows the status and the number of devices found. **List the raw devices** writes the model and the capabilities of each device to the logs, which helps reporting an unsupported device.
 
+## Troubleshooting
+
+- **Connected, but no device**: the devices are not shared with the dedicated account, or the invitation was not accepted. Share them from the eufy Security app of your main account, sign in once with the dedicated account in the app to accept, then click **Test the connection**.
+- **No verification code received, or a captcha you cannot read**: save the form again with the field empty, eufy sends a new one.
+- **"eufy refused the verification code"**: the code was wrong or expired. Save the form again with the field empty to get a new one.
+- **"The eufy account is temporarily blocked"**: too many attempts. Wait a while without saving the form (each attempt extends the block), then save it again.
+- **"Connected to eufy, but the real-time events could not start"**: the integration retries on its own, with a growing delay. Check the internet access of the Gladys server if it lasts.
+- **Unlocking or disarming refused**: switch on **Allow unlocking from Gladys** or **Allow disarming from Gladys** in the configuration.
+- **No camera image, or an old one**: an image only arrives with a motion or doorbell event. A scene sending the image waits a few seconds for it.
+- **A device is missing**: use **List the raw devices** and open an issue with its output. The output contains the serial numbers of your devices: anonymize them before sharing it.
+
 ## Limitations
 
 - **No live video**: Gladys only shows still images.
