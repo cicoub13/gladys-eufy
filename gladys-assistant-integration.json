@@ -9,6 +9,7 @@
   "version": "1.0.0",
   "docker_image": "ghcr.io/cicoub13/gladys-eufy:1.0.0",
   "gladys_version": ">=5.1.0",
+  "cover_image": "https://raw.githubusercontent.com/cicoub13/gladys-eufy/main/cover.png",
   "categories": ["security"],
   "transports": ["cloud"],
   "config_schema": [
