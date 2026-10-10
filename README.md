@@ -6,6 +6,18 @@ Built on the [Gladys external integration platform](https://gladysassistant.com/
 
 User documentation: [docs/en.md](docs/en.md) · [docs/fr.md](docs/fr.md).
 
+## Screenshots
+
+Cameras with their last thumbnail, the doorbell, the lock, the HomeBase guard mode, sensors and batteries on a dashboard:
+
+![eufy Security cameras, doorbell, lock, guard mode and sensors on a Gladys dashboard](docs/images/dashboard.png)
+
+A Gladys scene started by the `motion_detected` trigger, filtered on the doorbell and on people, that sends the camera image:
+
+![A Gladys scene triggered when the eufy doorbell detects a person](docs/images/scene-trigger.png)
+
+_Captured on a Gladys 5.1 dashboard with simulated devices and states — values are illustrative. Camera images: public domain (CC0) photos from Wikimedia Commons by [Daderot](https://commons.wikimedia.org/wiki/File:Porch_-_Arlington,_MA_-_13.jpg), [Tomwsulcer](https://commons.wikimedia.org/wiki/File:Green_house_with_tree_and_driveway_in_Oldwick_New_Jersey.JPG) and [Chase Bohannon](https://commons.wikimedia.org/wiki/File:Beautiful_Trees_In_A_Backyard.jpg)._
+
 ## Supported devices
 
 Devices are mapped by the capabilities eufy-sdk reports, not by model:
