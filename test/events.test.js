@@ -6,6 +6,7 @@ import {
   RESET_RETRY_MS,
   RING_RESET_MS,
   SNAPSHOT_ATTEMPTS,
+  STATES_RETRY_MS,
 } from '../src/events.js';
 import {
   makeFakeClient,
@@ -207,6 +208,47 @@ test('forget makes a device publish everything again', async () => {
   bridge.forget('D1');
   await bridge.publishDeviceStates(doorbell);
   assert.deepEqual(gladys.statesOf(`${DOORBELL}:battery`), [80, 80]);
+});
+
+test('the states of a device go in one request, retried a minute after a failure', async () => {
+  const { gladys, bridge, doorbell, scheduleTimer } = await setup();
+  gladys.publishError = new Error('Gladys restarting');
+  await bridge.publishDeviceStates(doorbell);
+  await bridge.publishDeviceStates(doorbell);
+  assert.deepEqual(
+    scheduleTimer.active().map((timer) => timer.delayMs),
+    [STATES_RETRY_MS],
+    'one retry per device',
+  );
+  gladys.publishError = null;
+  await scheduleTimer.runAll();
+  assert.deepEqual(gladys.calls.batches, [3], 'battery, ring and motion at once');
+  assert.deepEqual(gladys.statesOf(`${DOORBELL}:battery`), [80]);
+});
+
+test('the states wait for the 300 per minute budget instead of a 429', async () => {
+  const gladys = makeFakeGladys({ created: ['D1'] });
+  let clock = 0;
+  const sleep = async (delayMs) => {
+    clock += delayMs;
+  };
+  const bridge = createEventBridge({
+    gladys,
+    registry: new Map(),
+    logger: silentLogger,
+    scheduleTimer: makeFakeTimer(),
+    sleep,
+    onDevicesChanged: () => {},
+    now: () => clock,
+  });
+  for (let i = 0; i < 300; i += 1) {
+    await bridge.publish(`${DOORBELL}:f${i}`, 1);
+    clock += 10;
+  }
+  assert.equal(clock, 3_000);
+  await bridge.publish(`${DOORBELL}:last`, 1);
+  assert.equal(clock, 60_000, 'waited until the first state left the window');
+  assert.equal(gladys.calls.states.length, 301);
 });
 
 test('nothing is published for a device the user did not create', async () => {

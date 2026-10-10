@@ -3,6 +3,7 @@
 // devices and timers. No mocking library: each fake records what it received.
 // -----------------------------------------------------------------------------
 
+import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 
 /**
@@ -49,6 +50,7 @@ export function makeFakeGladys({ config = {}, created = [] } = {}) {
   const calls = {
     discovered: [],
     states: [],
+    batches: [],
     images: [],
     sceneEvents: [],
     connectionStatus: [],
@@ -75,11 +77,18 @@ export function makeFakeGladys({ config = {}, created = [] } = {}) {
       calls.discovered.push(devices);
       return { success: true };
     },
-    async publishState(featureExternalId, value) {
+    async publishStates(states) {
       if (this.publishError) {
         throw this.publishError;
       }
-      calls.states.push({ featureExternalId, value });
+      assert.ok(states.length <= 100, 'at most 100 states per request');
+      calls.batches.push(states.length);
+      for (const state of states) {
+        calls.states.push({
+          featureExternalId: state.device_feature_external_id,
+          value: state.text === undefined ? state.state : { text: state.text },
+        });
+      }
       return { success: true };
     },
     async publishCameraImage(deviceExternalId, image) {

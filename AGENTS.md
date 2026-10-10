@@ -59,6 +59,9 @@ are in `CHANGELOG.md`.
 
 - Camera images: `image/jpg;base64,...` ≤ 150 KB (`src/image.js` halves bigger ones),
   12 per minute per device, expire after 1 h. `onGetImage` answers the cached thumbnail.
+- States: 300 per minute per integration. `events` publishes the states of a device in one
+  `publishStates` request, one request at a time, waits for the budget rather than earn a 429,
+  and republishes a device whose request failed a minute later.
 - Lock command: only `0`/`1`/`"0"`/`"1"` are accepted — `Number('')` is 0 and would unlock.
 - Commands are acked under 5 s: eufy calls get 4 s (`commands.COMMAND_TIMEOUT_MS`).
 - `onConfigUpdated` is not acknowledged: `applyConfig` never throws, errors go to the status.

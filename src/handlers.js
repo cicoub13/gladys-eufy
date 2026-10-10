@@ -11,6 +11,7 @@ import { createCommands } from './commands.js';
 import { createEventBridge, SNAPSHOT_ATTEMPTS, SNAPSHOT_RETRY_DELAY_MS } from './events.js';
 import { buildDevice } from './mapping.js';
 import { toGladysImage } from './image.js';
+import { createQueue } from './queue.js';
 import { createSession, PHASE } from './session.js';
 import { connected as connectedMessage, MISSING_CONFIG } from './status.js';
 
@@ -24,16 +25,6 @@ const defaultScheduleTimer = (fn, delayMs) => {
 };
 
 const defaultSleep = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs));
-
-/** Runs the tasks handed to it one after the other, in call order. */
-function createQueue() {
-  let tail = Promise.resolve();
-  return (task) => {
-    const result = tail.then(task);
-    tail = result.catch(() => {});
-    return result;
-  };
-}
 
 function replaceEntries(map, entries) {
   map.clear();
