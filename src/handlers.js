@@ -120,7 +120,14 @@ export function createHandlers({
         }
       }
       nextHeld.set(dev.sn, dev);
-      const device = buildDevice(gladys, dev);
+      // One device the mapping chokes on must not hide the others.
+      let device;
+      try {
+        device = buildDevice(gladys, dev);
+      } catch (err) {
+        logger.warn(`Failed to map the eufy device ${record.sn}:`, err?.message ?? err);
+        continue;
+      }
       if (device) {
         nextRegistry.set(dev.sn, dev);
         devices.push(device);
@@ -137,7 +144,11 @@ export function createHandlers({
     heldClient = client;
     await gladys.publishDiscoveredDevices(devices);
     for (const dev of registry.values()) {
-      await events.publishDeviceStates(dev);
+      try {
+        await events.publishDeviceStates(dev);
+      } catch (err) {
+        logger.warn(`Failed to read the states of the eufy device ${dev.sn}:`, err?.message ?? err);
+      }
     }
     return devices.length;
   }

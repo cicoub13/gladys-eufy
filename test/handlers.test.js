@@ -62,6 +62,29 @@ test('at startup, the supported devices are published with their states', async 
   assert.equal(gladys.lastStatus().connected, true);
 });
 
+test('a device the mapping chokes on does not hide the others', async () => {
+  const devices = makeDevices();
+  devices[0].has = () => {
+    throw new Error('boom');
+  };
+  // A getter failing only when the states are read.
+  const values = {};
+  Object.defineProperty(values, 'open', {
+    get() {
+      throw new Error('getter');
+    },
+  });
+  devices.unshift(makeFakeDevice({ sn: 'S1', name: 'Door', capabilities: ['contact'], values }));
+  const { gladys, handlers } = setup({ devices });
+  await handlers.gladysConnected();
+  assert.deepEqual(
+    gladys.calls.discovered.at(-1).map((device) => device.name),
+    ['Door', 'Lock'],
+  );
+  assert.deepEqual(gladys.statesOf('ext:eufy-test:eufy:L1:lock'), [1]);
+  assert.equal(gladys.lastStatus().connected, true);
+});
+
 test('an incomplete configuration asks for the account', async () => {
   const { gladys, handlers, clients } = setup({ config: { email: 'me@example.com' } });
   await handlers.gladysConnected();
