@@ -99,6 +99,20 @@ test('detections set motion to 1 and back to 0 after the last one', async () => 
   assert.deepEqual(gladys.statesOf(`${DOORBELL}:motion`), [1, 1, 0]);
 });
 
+test('a thumbnail already sent is not sent again, and at most 12 a minute', async () => {
+  const { gladys, client, doorbell } = await setup();
+  // One push: several detection events, one thumbnail.
+  await client.fire('motion', { deviceSn: 'D1' });
+  await client.fire('personDetected', { deviceSn: 'D1' });
+  assert.equal(gladys.calls.images.length, 1);
+
+  for (let quality = 10; quality < 25; quality += 1) {
+    doorbell.snapshots = [await makeJpeg(8, 8, quality)];
+    await client.fire('motion', { deviceSn: 'D1' });
+  }
+  assert.equal(gladys.calls.images.length, 12);
+});
+
 test('a pending thumbnail is waited for', async () => {
   const { gladys, client, doorbell, sleep } = await setup();
   const jpeg = await makeJpeg();

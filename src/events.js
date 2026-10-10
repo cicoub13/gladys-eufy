@@ -14,6 +14,7 @@
 // again (see handlers.js).
 // -----------------------------------------------------------------------------
 
+import { createHash } from 'node:crypto';
 import { deviceIds, featuresOf, readStates } from './mapping.js';
 import { toGladysImage } from './image.js';
 import { createQueue } from './queue.js';
@@ -25,8 +26,10 @@ export const RESET_RETRY_MS = 30_000;
 /** Pulse features: 0 unless an event is in progress. */
 const PULSE_KEYS = ['ring', 'motion'];
 
-// Host API limit: 300 states per minute per integration.
+// Host API limits: 300 states per minute per integration, 12 images per minute
+// per camera.
 const STATES_PER_MINUTE = 300;
+const IMAGES_PER_MINUTE = 12;
 const RATE_WINDOW_MS = 60_000;
 export const STATES_RETRY_MS = 60_000;
 
@@ -89,6 +92,8 @@ export function createEventBridge({
   const retries = new Map();
   // Accepted state batches of the last minute: { at, count }.
   const sent = [];
+  // Last image published per serial number, and when the last ones were.
+  const images = new Map();
   const queuePublish = createQueue();
 
   const hasFeature = (dev, key) => featuresOf(dev).some((spec) => spec.key === key);
@@ -223,6 +228,26 @@ export function createEventBridge({
   }
 
   /**
+   * One push fires several detection events (motion, person...) carrying the
+   * same thumbnail, and Gladys takes 12 images per minute per camera: an image
+   * already sent within the minute, or one over the limit, is skipped.
+   */
+  async function publishImage(sn, deviceId, jpeg) {
+    const hash = createHash('sha1').update(jpeg).digest('hex');
+    const last = images.get(sn) ?? { hash: null, at: [] };
+    const recent = last.at.filter((at) => at > now() - RATE_WINDOW_MS);
+    if (last.hash === hash && recent.length > 0) {
+      return;
+    }
+    if (recent.length >= IMAGES_PER_MINUTE) {
+      logger.debug(`Thumbnail of ${sn} skipped: ${IMAGES_PER_MINUTE} images in the last minute`);
+      return;
+    }
+    await gladys.publishCameraImage(deviceId, toGladysImage(jpeg));
+    images.set(sn, { hash, at: [...recent, now()] });
+  }
+
+  /**
    * Publish the push thumbnail of a camera. The SDK downloads it when the push
    * arrives, so it may still be pending when the event fires.
    */
@@ -241,7 +266,7 @@ export function createEventBridge({
             return;
           }
           const jpeg = await camera.snapshotStored();
-          await gladys.publishCameraImage(deviceId, toGladysImage(jpeg));
+          await publishImage(dev.sn, deviceId, jpeg);
           return;
         } catch (err) {
           if (err?.reason === 'pending' && attempt < SNAPSHOT_ATTEMPTS) {
