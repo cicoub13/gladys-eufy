@@ -73,6 +73,11 @@ export function verificationCodeRequired(method) {
   };
 }
 
+export const CODE_REFUSED = {
+  en: 'eufy refused the verification code (wrong or expired): save the form again with the "Verification code" field empty to get a new one.',
+  fr: 'eufy a refusé le code de vérification (erroné ou expiré) : enregistrez de nouveau le formulaire avec le champ « Code de vérification » vide pour en recevoir un nouveau.',
+};
+
 /**
  * @param {boolean} retry Whether the previous answer was wrong.
  */

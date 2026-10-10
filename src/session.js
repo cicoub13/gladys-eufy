@@ -19,6 +19,7 @@
 
 import { describeEufyError, errorToText } from './errors.js';
 import {
+  CODE_REFUSED,
   CONNECTING,
   captchaRequired,
   connected,
@@ -163,8 +164,8 @@ export function createSession({
     realtimeBackoffMs = Math.min(realtimeBackoffMs * 2, BACKOFF_MAX_MS);
   }
 
-  async function handleError(err) {
-    const { transient, message, text } = describeEufyError(err);
+  async function handleError(err, { codeSubmitted = false } = {}) {
+    const { kind, transient, message, text } = describeEufyError(err);
     if (transient) {
       phase = PHASE.CONNECTING;
       logger.warn(`eufy login failed (${text}), retrying in ${backoffMs / 1000} s`);
@@ -175,11 +176,13 @@ export function createSession({
     }
     phase = PHASE.FAILED;
     logger.error(`eufy login failed: ${text}`);
-    await setStatus(false, message);
+    // eufy-sdk has no error of its own for a refused verification code: an
+    // unexplained failure right after one is taken as such.
+    await setStatus(false, codeSubmitted && kind === 'unknown' ? CODE_REFUSED : message);
   }
 
   /** Run one login step and route its outcome; never throws. */
-  async function run(step) {
+  async function run(step, errorContext) {
     const runGeneration = generation;
     try {
       const result = await step();
@@ -188,7 +191,7 @@ export function createSession({
       }
     } catch (err) {
       if (runGeneration === generation) {
-        await handleError(err);
+        await handleError(err, errorContext);
       }
     }
   }
@@ -267,7 +270,8 @@ export function createSession({
         return false;
       }
       phase = PHASE.CONNECTING;
-      await run(() => client.submitVerifyCode(code));
+      await setStatus(false, CONNECTING);
+      await run(() => client.submitVerifyCode(code), { codeSubmitted: true });
       return true;
     },
 
@@ -281,6 +285,7 @@ export function createSession({
         return false;
       }
       phase = PHASE.CONNECTING;
+      await setStatus(false, CONNECTING);
       await run(() => client.solveCaptcha(answer));
       return true;
     },

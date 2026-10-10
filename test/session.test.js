@@ -98,6 +98,21 @@ test('a captcha is written to the logs, then answered', async () => {
   assert.deepEqual(client.calls.solveCaptcha, ['wrng', 'ab12']);
 });
 
+test('a refused verification code says how to get a new one', async () => {
+  const { session, statuses } = setup([{ status: '2fa' }, new Error('login failed: 26052')]);
+  await session.start(CONFIG);
+  await session.submitVerificationCode('000000');
+  assert.equal(statuses.at(-2).message.en, 'Connecting to eufy...', 'the code is being checked');
+  assert.equal(session.phase, PHASE.FAILED);
+  assert.match(statuses.at(-1).message.fr, /refusé le code de vérification/);
+});
+
+test('an unexplained failure says how to retry', async () => {
+  const { session, statuses } = setup([new Error('login failed: 26052')]);
+  await session.start(CONFIG);
+  assert.match(statuses.at(-1).message.en, /26052\. Save the configuration again to retry\./);
+});
+
 test('an answer without a pending question is ignored', async () => {
   const { client, session } = setup([{ status: 'ok' }]);
   await session.start(CONFIG);
