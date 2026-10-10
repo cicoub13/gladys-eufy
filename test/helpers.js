@@ -249,6 +249,9 @@ export function makeFakeClient({ devices = [], loginResults = [{ status: 'ok' }]
   client.disconnect = async () => {
     client.calls.disconnect += 1;
   };
+  /** What `waitForRealtime` answers. */
+  client.realtime = { state: 'ready', push: { failed: 0 }, mqtt: { failed: 0 } };
+  client.waitForRealtime = async () => client.realtime;
   /** Emit an event and wait for the listeners' work (they return promises). */
   client.fire = async (name, ...args) => {
     await Promise.all(client.listeners(name).map((listener) => listener(...args)));

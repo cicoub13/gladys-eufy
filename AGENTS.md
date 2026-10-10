@@ -36,6 +36,10 @@ are in `CHANGELOG.md`.
   undefined until eufy-sdk confirms them. Nothing is published then.
 - `snapshotStored()` is the push thumbnail cached by eufy-sdk; it rejects with a `reason`
   (`pending` while downloading → retried by `events.publishThumbnail`).
+- Realtime (push, MQTT, poll) starts once per login epoch, in the background, and is never
+  retried by eufy-sdk; only `disconnect()` opens a new epoch. `session.watchRealtime` checks
+  `waitForRealtime()` after each login and restarts with `disconnect()` + `login()`; every
+  scheduled re-login disconnects first for the same reason.
 - `noBroadcast: true`: the container is on a bridge network, the P2P LAN broadcast cannot work.
 
 ## Gladys contract points

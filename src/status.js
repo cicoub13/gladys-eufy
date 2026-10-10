@@ -27,6 +27,19 @@ export function connected(deviceCount) {
 }
 
 /**
+ * @param {number} delayMs Delay before the realtime channels are restarted.
+ */
+export function realtimeUnavailable(delayMs) {
+  return retrying(
+    {
+      en: 'Connected to eufy, but the real-time events (doorbell, motion, images) could not start.',
+      fr: 'Connecté à eufy, mais les événements temps réel (sonnette, mouvement, images) n’ont pas pu démarrer.',
+    },
+    delayMs,
+  );
+}
+
+/**
  * @param {string} [method] How eufy sent the code ("email", "sms"...).
  */
 export function verificationCodeRequired(method) {

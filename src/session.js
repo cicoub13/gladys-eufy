@@ -8,22 +8,40 @@
 //                                           └── otherwise: stays failed until the
 //                                               configuration is saved again
 //
+// Once connected, the realtime channels (push, MQTT) eufy-sdk brings up in the
+// background are checked: they are restarted (disconnect + login) when they
+// failed, or no event would ever arrive while the status says "connected".
+//
 // A captcha or a code belongs to the login that requested it: a new `login()`
 // invalidates it. So a pending login is kept as is until the user answers, and
 // the answer is handed to THAT login.
 // -----------------------------------------------------------------------------
 
-import { describeEufyError } from './errors.js';
+import { describeEufyError, errorToText } from './errors.js';
 import {
   CONNECTING,
   captchaRequired,
   connected,
+  realtimeUnavailable,
   retrying,
   verificationCodeRequired,
 } from './status.js';
 
 const BACKOFF_START_MS = 60_000;
 const BACKOFF_MAX_MS = 15 * 60_000;
+export const REALTIME_TIMEOUT_MS = 120_000;
+
+/**
+ * Whether the realtime startup of a login failed. The wired-camera P2P warm-up
+ * is left out: it is best effort, events come through push and MQTT.
+ */
+function realtimeFailed(readiness) {
+  return (
+    readiness.state === 'timed-out' ||
+    readiness.state === 'error' ||
+    (readiness.push?.failed ?? 0) + (readiness.mqtt?.failed ?? 0) > 0
+  );
+}
 
 /** The phases a session goes through. */
 export const PHASE = {
@@ -57,6 +75,7 @@ export function createSession({
   let client = null;
   let phase = PHASE.IDLE;
   let backoffMs = BACKOFF_START_MS;
+  let realtimeBackoffMs = BACKOFF_START_MS;
   let cancelRetry = null;
   // Bumped by every start/stop: a login still in flight for a previous account
   // must not report its outcome over the current one.
@@ -75,7 +94,12 @@ export function createSession({
     cancelRetry = scheduleTimer(() => {
       cancelRetry = null;
       if (scheduledGeneration === generation) {
-        return run(() => client.login());
+        // eufy-sdk restarts the realtime channels on a login only after a
+        // disconnect(): a login alone would keep the failed ones.
+        return run(async () => {
+          await client.disconnect();
+          return client.login();
+        });
       }
       return undefined;
     }, delayMs);
@@ -90,6 +114,9 @@ export function createSession({
       if (runGeneration === generation) {
         logger.info(`Connected to eufy, ${count} supported device(s) found`);
         await setStatus(true, connected(count));
+        watchRealtime(runGeneration).catch((err) => {
+          logger.warn('Failed to check the eufy realtime events:', errorToText(err));
+        });
       }
       return;
     }
@@ -111,6 +138,29 @@ export function createSession({
       return;
     }
     throw new Error(`Unexpected eufy login status: ${result.status}`);
+  }
+
+  /** Wait for the realtime startup of the login; restart it if it failed. */
+  async function watchRealtime(runGeneration) {
+    let readiness;
+    try {
+      readiness = await client.waitForRealtime({ timeoutMs: REALTIME_TIMEOUT_MS });
+    } catch (err) {
+      readiness = { state: 'error', reason: errorToText(err) };
+    }
+    if (runGeneration !== generation || phase !== PHASE.CONNECTED) {
+      return;
+    }
+    if (!realtimeFailed(readiness)) {
+      realtimeBackoffMs = BACKOFF_START_MS;
+      return;
+    }
+    logger.warn(
+      `eufy realtime events unavailable (${JSON.stringify(readiness)}), restarting them in ${realtimeBackoffMs / 1000} s`,
+    );
+    await setStatus(false, realtimeUnavailable(realtimeBackoffMs));
+    scheduleLogin(realtimeBackoffMs);
+    realtimeBackoffMs = Math.min(realtimeBackoffMs * 2, BACKOFF_MAX_MS);
   }
 
   async function handleError(err) {
@@ -186,6 +236,7 @@ export function createSession({
     async start(config) {
       await stop();
       backoffMs = BACKOFF_START_MS;
+      realtimeBackoffMs = BACKOFF_START_MS;
       phase = PHASE.CONNECTING;
       try {
         client = createClient(config);
