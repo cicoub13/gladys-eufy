@@ -7,7 +7,8 @@
 // them would mean a new login, and so a new 2FA code, at every restart.
 // -----------------------------------------------------------------------------
 
-import { mkdirSync } from 'node:fs';
+import { randomBytes, scryptSync } from 'node:crypto';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { EufyMega, FileFcmStore, FileSessionStore } from '@mega-yfue/eufy-sdk';
 
@@ -16,6 +17,48 @@ export const DATA_DIR = process.env.EUFY_DATA_DIR || '/data';
 
 export const SESSION_FILE = 'eufy-session.json';
 export const PUSH_FILE = 'eufy-push.json';
+export const ACCOUNT_FILE = 'eufy-account.json';
+
+/** Salted hash of the account: the marker must not reveal the password. */
+function accountHash(config, salt) {
+  const account = `${config.email.toLowerCase()}\n${config.country}\n${config.password}`;
+  return scryptSync(account, salt, 32).toString('hex');
+}
+
+/**
+ * The session and push files belong to one account, and eufy-sdk restores a
+ * session without any network call: signing in with another account, or a new
+ * password, would silently keep using the old token. A marker next to them
+ * names the account they belong to, and they are dropped when it changes. A
+ * missing or unreadable marker is taken as the current account, so that an
+ * existing session survives the upgrade.
+ *
+ * @param {import('./config.js').EufyConfig} config
+ * @param {string} dataDir
+ * @param {object} logger
+ */
+export function dropOtherAccountSession(config, dataDir, logger) {
+  const markerFile = join(dataDir, ACCOUNT_FILE);
+  let marker = null;
+  try {
+    marker = JSON.parse(readFileSync(markerFile, 'utf8'));
+  } catch {
+    // No marker yet.
+  }
+  const known = typeof marker?.salt === 'string' && typeof marker?.hash === 'string';
+  if (known && marker.hash === accountHash(config, marker.salt)) {
+    return;
+  }
+  if (known) {
+    rmSync(join(dataDir, SESSION_FILE), { force: true });
+    rmSync(join(dataDir, PUSH_FILE), { force: true });
+    logger.info('The eufy account or password changed: the previous session is dropped');
+  }
+  const salt = randomBytes(16).toString('hex');
+  writeFileSync(markerFile, JSON.stringify({ salt, hash: accountHash(config, salt) }), {
+    mode: 0o600,
+  });
+}
 
 /**
  * Route the eufy-sdk diagnostics to the integration logger. The SDK reports its
@@ -42,6 +85,7 @@ export function toEufyLogger(logger) {
  */
 export function createEufyClient(config, logger, dataDir = DATA_DIR) {
   mkdirSync(dataDir, { recursive: true });
+  dropOtherAccountSession(config, dataDir, logger);
   return new EufyMega({
     email: config.email,
     password: config.password,

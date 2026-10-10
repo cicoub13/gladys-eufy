@@ -59,3 +59,6 @@ are in `CHANGELOG.md`.
 - Config keys: `email`, `password`, `country`, `verification_code`, `captcha_answer`.
 - Scene trigger keys and their `device` / `target` / `phase` fields are forever.
 - `/data/eufy-session.json` and `/data/eufy-push.json`: renaming them logs everyone out.
+  `/data/eufy-account.json` (salted hash of email + country + password) tells which account
+  they belong to: they are deleted when it changes, as eufy-sdk restores a session without
+  checking the account.
