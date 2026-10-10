@@ -11,10 +11,21 @@ are in `CHANGELOG.md`.
 - `events.attach(client)` runs BEFORE `login()`: eufy-sdk emits from the first push.
 - On login `ok`: `refreshDevices` = `getDevices()` (plain records) → `getDevice(sn)` (the
   capability-driven `Device`) → `buildDevice` → `publishDiscoveredDevices` → states.
-- `registry` (sn → `Device`) MUST keep the `Device` objects: eufy-sdk holds them weakly, a dropped
-  one stops announcing `propertyChanged`.
+- `registry` (sn → supported `Device`) and `held` (sn → every `Device` fetched) MUST keep the
+  `Device` objects: eufy-sdk holds them weakly, a dropped one stops announcing `propertyChanged`.
+- `getDevice(sn)` replaces, in eufy-sdk, the object announcements go to: never call it for a
+  serial already in `held` (`refreshDevices` and `dump_devices` reuse `held`; eufy-sdk widens a
+  held device in place when it gains capabilities). `refreshDevices` builds new maps and swaps
+  them at the end, so events and commands never see an empty registry.
+- Device reads (`queueDevices`) and configuration changes (`queueConfig`) each run one at a
+  time: two `applyConfig` at once built two eufy clients.
 - Push, not poll: `should_poll: false`, no `onPoll`. State events re-read the device through the
   capability getters (`mapping.readStates`) and `events.publish` only sends changed values.
+- Pulses (`ring`, `motion`) have no `read`: `publishDeviceStates` publishes 0 for them unless a
+  reset is pending, a failed reset is retried, and `events.stop()` publishes the pending 0s, so
+  none stays at 1.
+- States and images of a device the user did not create (not in `gladys.devices`) are skipped:
+  Gladys drops the states (still counting them in its rate limit) and refuses the images.
 - States published before the user creates the device are dropped by Gladys:
   `deviceCreated` → `events.forget(sn)` → republish.
 
@@ -34,12 +45,23 @@ are in `CHANGELOG.md`.
   undefined until eufy-sdk confirms them. Nothing is published then.
 - `snapshotStored()` is the push thumbnail cached by eufy-sdk; it rejects with a `reason`
   (`pending` while downloading → retried by `events.publishThumbnail`).
+- Realtime (push, MQTT, poll) starts once per login epoch, in the background, and is never
+  retried by eufy-sdk; only `disconnect()` opens a new epoch. `session.watchRealtime` checks
+  `waitForRealtime()` after each login and restarts with `disconnect()` + `login()`; every
+  scheduled re-login disconnects first for the same reason.
+- The SDK file stores write in place and throw on failure (its push store saves from a socket
+  handler: a throw crashes the process): `eufy.JsonFileStore` writes through a renamed temporary
+  file and logs a failed write. The push `persistentIds` list is never trimmed by eufy-sdk; do not
+  trim it here, FCM would redeliver the dropped ids (old doorbell events).
 - `noBroadcast: true`: the container is on a bridge network, the P2P LAN broadcast cannot work.
 
 ## Gladys contract points
 
 - Camera images: `image/jpg;base64,...` ≤ 150 KB (`src/image.js` halves bigger ones),
   12 per minute per device, expire after 1 h. `onGetImage` answers the cached thumbnail.
+- States: 300 per minute per integration. `events` publishes the states of a device in one
+  `publishStates` request, one request at a time, waits for the budget rather than earn a 429,
+  and republishes a device whose request failed a minute later.
 - Lock command: only `0`/`1`/`"0"`/`"1"` are accepted — `Number('')` is 0 and would unlock.
 - Commands are acked under 5 s: eufy calls get 4 s (`commands.COMMAND_TIMEOUT_MS`).
 - `onConfigUpdated` is not acknowledged: `applyConfig` never throws, errors go to the status.
@@ -50,6 +72,10 @@ are in `CHANGELOG.md`.
 
 - Device `external_id` = `externalIds('eufy', sn)`; feature keys in `mapping.FEATURES`
   (pinned by `test/compat.test.js`).
-- Config keys: `email`, `password`, `country`, `verification_code`, `captcha_answer`.
+- Config keys: `email`, `password`, `country`, `allow_unlock`, `allow_disarm`,
+  `verification_code`, `captcha_answer`.
 - Scene trigger keys and their `device` / `target` / `phase` fields are forever.
 - `/data/eufy-session.json` and `/data/eufy-push.json`: renaming them logs everyone out.
+  `/data/eufy-account.json` (salted hash of email + country + password) tells which account
+  they belong to: they are deleted when it changes, as eufy-sdk restores a session without
+  checking the account.

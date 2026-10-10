@@ -20,8 +20,8 @@
         "fr": "Compte eufy"
       },
       "description": {
-        "en": "Use a dedicated eufy account: create one, then share your devices with it from the eufy Security app (Settings > Family & Guests, with admin rights to control locks and guard mode). eufy keeps a single session per account, so signing in with your main account would sign you out of the app. The country must be the one of the eufy account.",
-        "fr": "Utilisez un compte eufy dédié : créez-en un, puis partagez-lui vos appareils depuis l'application eufy Security (Paramètres > Famille et invités, avec les droits administrateur pour piloter serrures et mode d'armement). eufy ne garde qu'une session par compte : se connecter avec votre compte principal vous déconnecterait de l'application. Le pays doit être celui du compte eufy."
+        "en": "Use a dedicated eufy account: create one, then share your devices with it from the eufy Security app (Settings > Family & Guests, with admin rights to control locks and guard mode), and sign in once with the new account in the app to accept the invitation. eufy keeps a single session per account, so signing in with your main account would sign you out of the app. The country must be the one of the eufy account.",
+        "fr": "Utilisez un compte eufy dédié : créez-en un, puis partagez-lui vos appareils depuis l'application eufy Security (Paramètres > Famille et invités, avec les droits administrateur pour piloter serrures et mode d'armement), et connectez-vous une fois avec le nouveau compte dans l'application pour accepter l'invitation. eufy ne garde qu'une session par compte : se connecter avec votre compte principal vous déconnecterait de l'application. Le pays doit être celui du compte eufy."
       },
       "links": [
         {
@@ -70,6 +70,32 @@
       "required": true
     },
     {
+      "key": "allow_unlock",
+      "type": "boolean",
+      "label": {
+        "en": "Allow unlocking from Gladys",
+        "fr": "Autoriser le déverrouillage depuis Gladys"
+      },
+      "description": {
+        "en": "Off: locks can be locked from Gladys, not unlocked. On: any Gladys user, scene or voice assistant connected to Gladys can open the door.",
+        "fr": "Désactivé : les serrures peuvent être verrouillées depuis Gladys, pas déverrouillées. Activé : tout utilisateur, toute scène ou tout assistant vocal relié à Gladys peut ouvrir la porte."
+      },
+      "default": false
+    },
+    {
+      "key": "allow_disarm",
+      "type": "boolean",
+      "label": {
+        "en": "Allow disarming from Gladys",
+        "fr": "Autoriser le désarmement depuis Gladys"
+      },
+      "description": {
+        "en": "Off: the guard mode cannot be set to Disarmed or Off from Gladys. On: any Gladys user, scene or voice assistant connected to Gladys can disarm the HomeBase.",
+        "fr": "Désactivé : le mode d'armement ne peut pas passer à Désarmé ou Off depuis Gladys. Activé : tout utilisateur, toute scène ou tout assistant vocal relié à Gladys peut désarmer la HomeBase."
+      },
+      "default": false
+    },
+    {
       "key": "login_intro",
       "type": "section",
       "label": {
@@ -77,8 +103,8 @@
         "fr": "Uniquement si le statut de connexion le demande"
       },
       "description": {
-        "en": "eufy may ask for a verification code (sent by email) or for a captcha at the first sign-in. Type the answer in the matching field, then save: the integration hands it to the pending sign-in and empties the field. Captcha: the image is written in the Logs of the integration, on a line starting with data:image/png;base64, — paste that line into the address bar of your browser to see it.",
-        "fr": "eufy peut demander un code de vérification (envoyé par email) ou un captcha à la première connexion. Saisissez la réponse dans le champ correspondant, puis enregistrez : l'intégration la transmet à la connexion en attente et vide le champ. Captcha : l'image est écrite dans les Logs de l'intégration, sur une ligne commençant par data:image/png;base64, — collez cette ligne dans la barre d'adresse de votre navigateur pour la voir."
+        "en": "eufy may ask for a verification code (sent by email) or for a captcha at the first sign-in. Type the answer in the matching field, then save: the integration hands it to the pending sign-in and empties the field. Captcha: the image is written in the Logs of the integration, on a line starting with data:image/png;base64, — paste that line into the address bar of your browser to see it. No code received, or a captcha you cannot read: save again with the field empty to get a new one.",
+        "fr": "eufy peut demander un code de vérification (envoyé par email) ou un captcha à la première connexion. Saisissez la réponse dans le champ correspondant, puis enregistrez : l'intégration la transmet à la connexion en attente et vide le champ. Captcha : l'image est écrite dans les Logs de l'intégration, sur une ligne commençant par data:image/png;base64, — collez cette ligne dans la barre d'adresse de votre navigateur pour la voir. Code non reçu ou captcha illisible : enregistrez de nouveau avec le champ vide pour en recevoir un nouveau."
       }
     },
     {

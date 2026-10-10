@@ -2,7 +2,7 @@
 
 eufy Security external integration for [Gladys Assistant](https://gladysassistant.com): cameras, video doorbells, smart locks, sensors and HomeBase guard mode in Gladys.
 
-Built on the [Gladys external integration platform](https://gladysassistant.com/docs/dev/external-integrations/) and the [`@mega-yfue/eufy-sdk`](https://github.com/mega-yfue/eufy-sdk) library (the successor of `eufy-security-client`). Requires **Gladys 5.1 or later** (scene triggers).
+Built on the [Gladys external integration platform](https://gladysassistant.com/docs/dev/external-integrations/) and the [`@mega-yfue/eufy-sdk`](https://github.com/mega-yfue/eufy-sdk) library (the successor of `eufy-security-client`). Requires **Gladys 5.1 or later** (scene triggers) and a **dedicated eufy account** the devices are shared with, invitation accepted (eufy keeps one session per account: see the user documentation).
 
 User documentation: [docs/en.md](docs/en.md) · [docs/fr.md](docs/fr.md).
 
@@ -16,11 +16,13 @@ Devices are mapped by the capabilities eufy-sdk reports, not by model:
 | `doorbell`                       | `doorbell` / `ring` — 1 on a press, back to 0 after 5 s      |
 | `motion` / `person_detection`    | `motion-sensor` / `binary` — 1 on a detection, 0 after 30 s  |
 | `contact`                        | `opening-sensor` / `binary`                                  |
-| `lock`                           | `lock` / `binary` — **controllable**, 1 = locked             |
+| `lock`                           | `lock` / `binary` — **controllable**, 1 = locked (¹)         |
 | `leak` / `smoke` / `co`          | `leak-sensor` / `smoke-sensor` / `co-sensor` — `binary`      |
 | `siren`                          | `siren` / `binary` (read-only)                               |
-| `arming` (HomeBase, solo camera) | `text` / `select` — **controllable** guard mode              |
+| `arming` (HomeBase, solo camera) | `text` / `select` — **controllable** guard mode (¹)          |
 | `battery` (and lock battery)     | `battery` / `integer` + `charging`, `battery-low` / `binary` |
+
+(¹) Unlocking and disarming (guard mode Disarmed or Off) are refused unless `allow_unlock` / `allow_disarm` are switched on in the configuration.
 
 Scene triggers: `doorbell_pressed`, `motion_detected` (`target`: motion / person / stranger / vehicle / pet), `package_delivered`, `alarm_triggered` (`phase`: triggered / delayed).
 

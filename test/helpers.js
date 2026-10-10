@@ -3,6 +3,7 @@
 // devices and timers. No mocking library: each fake records what it received.
 // -----------------------------------------------------------------------------
 
+import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 
 /**
@@ -42,12 +43,14 @@ export function makeRecordingLogger() {
 }
 
 /**
- * Fake GladysIntegration recording every call.
+ * Fake GladysIntegration recording every call. `created` lists the serial
+ * numbers of the eufy devices the user created (`gladys.devices`).
  */
-export function makeFakeGladys({ config = {} } = {}) {
+export function makeFakeGladys({ config = {}, created = [] } = {}) {
   const calls = {
     discovered: [],
     states: [],
+    batches: [],
     images: [],
     sceneEvents: [],
     connectionStatus: [],
@@ -56,6 +59,9 @@ export function makeFakeGladys({ config = {} } = {}) {
   return {
     calls,
     config,
+    devices: created.map((sn) => ({
+      external_id: externalIdHelpers.externalIds('eufy', sn).device,
+    })),
     /** Set to an Error to make the next publications reject. */
     publishError: null,
     ...externalIdHelpers,
@@ -71,11 +77,18 @@ export function makeFakeGladys({ config = {} } = {}) {
       calls.discovered.push(devices);
       return { success: true };
     },
-    async publishState(featureExternalId, value) {
+    async publishStates(states) {
       if (this.publishError) {
         throw this.publishError;
       }
-      calls.states.push({ featureExternalId, value });
+      assert.ok(states.length <= 100, 'at most 100 states per request');
+      calls.batches.push(states.length);
+      for (const state of states) {
+        calls.states.push({
+          featureExternalId: state.device_feature_external_id,
+          value: state.text === undefined ? state.state : { text: state.text },
+        });
+      }
       return { success: true };
     },
     async publishCameraImage(deviceExternalId, image) {
@@ -223,8 +236,17 @@ export function makeFakeClient({ devices = [], loginResults = [{ status: 'ok' }]
     }
     return result;
   };
-  client.calls = { login: 0, submitVerifyCode: [], solveCaptcha: [], disconnect: 0 };
+  client.calls = {
+    login: 0,
+    submitVerifyCode: [],
+    solveCaptcha: [],
+    disconnect: 0,
+    getDevice: [],
+  };
   client.devices = devices;
+  // Like eufy-sdk, `getDevice` builds a new object each time and announces
+  // against the last one built for a serial.
+  client.live = new Map();
   client.login = async () => {
     client.calls.login += 1;
     return next();
@@ -241,14 +263,21 @@ export function makeFakeClient({ devices = [], loginResults = [{ status: 'ok' }]
     client.devices.map((dev) => ({ sn: dev.sn, name: dev.name, model: dev.model }));
   client.getDevice = async (sn) => {
     const dev = client.devices.find((candidate) => candidate.sn === sn);
+    client.calls.getDevice.push(sn);
     if (!dev) {
       throw new Error(`unknown device ${sn}`);
     }
-    return dev;
+    // Reads fall through to the fake device, so the tests can change it.
+    const built = Object.create(dev);
+    client.live.set(sn, built);
+    return built;
   };
   client.disconnect = async () => {
     client.calls.disconnect += 1;
   };
+  /** What `waitForRealtime` answers. */
+  client.realtime = { state: 'ready', push: { failed: 0 }, mqtt: { failed: 0 } };
+  client.waitForRealtime = async () => client.realtime;
   /** Emit an event and wait for the listeners' work (they return promises). */
   client.fire = async (name, ...args) => {
     await Promise.all(client.listeners(name).map((listener) => listener(...args)));

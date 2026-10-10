@@ -11,6 +11,16 @@ export const MISSING_CONFIG = {
   fr: 'Veuillez renseigner l’email et le mot de passe de votre compte eufy, puis enregistrer.',
 };
 
+/**
+ * @param {string} country The value typed in the form.
+ */
+export function invalidCountry(country) {
+  return {
+    en: `The country "${country}" is not a 2-letter code: type the one of the eufy account (FR, DE, GB, US...), then save.`,
+    fr: `Le pays « ${country} » n’est pas un code à 2 lettres : saisissez celui du compte eufy (FR, DE, GB, US…), puis enregistrez.`,
+  };
+}
+
 export const CONNECTING = {
   en: 'Connecting to eufy...',
   fr: 'Connexion à eufy...',
@@ -20,6 +30,12 @@ export const CONNECTING = {
  * @param {number} deviceCount
  */
 export function connected(deviceCount) {
+  if (deviceCount === 0) {
+    return {
+      en: 'Connected, but no supported eufy device was found on this account. Share your devices with it from the eufy Security app of your main account, then sign in once with this account in the app to accept the invitation. A shared device still missing: use “List the raw devices”.',
+      fr: 'Connecté, mais aucun appareil eufy pris en charge sur ce compte. Partagez-lui vos appareils depuis l’application eufy Security de votre compte principal, puis connectez-vous une fois avec ce compte dans l’application pour accepter l’invitation. Un appareil partagé manque toujours : utilisez « Lister les appareils bruts ».',
+    };
+  }
   return {
     en: `Connected — ${deviceCount} eufy device(s) found. Create them from the Discovery tab.`,
     fr: `Connecté — ${deviceCount} appareil(s) eufy trouvé(s). Créez-les depuis l’onglet Découverte.`,
@@ -27,15 +43,40 @@ export function connected(deviceCount) {
 }
 
 /**
- * @param {string} [method] How eufy sent the code ("email", "sms"...).
+ * @param {number} delayMs Delay before the realtime channels are restarted.
+ */
+export function realtimeUnavailable(delayMs) {
+  return retrying(
+    {
+      en: 'Connected to eufy, but the real-time events (doorbell, motion, images) could not start.',
+      fr: 'Connecté à eufy, mais les événements temps réel (sonnette, mouvement, images) n’ont pas pu démarrer.',
+    },
+    delayMs,
+  );
+}
+
+const CODE_CHANNELS = {
+  email: { en: ' by email', fr: ' par email' },
+  sms: { en: ' by SMS', fr: ' par SMS' },
+};
+
+/**
+ * @param {string} [method] How eufy sent the code. eufy-sdk describes it in
+ *   free text ("code sent via app-push/sendmsg/verify_code"): only a known
+ *   channel is named.
  */
 export function verificationCodeRequired(method) {
-  const by = method ? { en: ` by ${method}`, fr: ` par ${method}` } : { en: '', fr: '' };
+  const by = Object.hasOwn(CODE_CHANNELS, method) ? CODE_CHANNELS[method] : { en: '', fr: '' };
   return {
     en: `eufy sent a verification code${by.en}: type it in the "Verification code" field below, then save.`,
     fr: `eufy a envoyé un code de vérification${by.fr} : saisissez-le dans le champ « Code de vérification » ci-dessous, puis enregistrez.`,
   };
 }
+
+export const CODE_REFUSED = {
+  en: 'eufy refused the verification code (wrong or expired): save the form again with the "Verification code" field empty to get a new one.',
+  fr: 'eufy a refusé le code de vérification (erroné ou expiré) : enregistrez de nouveau le formulaire avec le champ « Code de vérification » vide pour en recevoir un nouveau.',
+};
 
 /**
  * @param {boolean} retry Whether the previous answer was wrong.

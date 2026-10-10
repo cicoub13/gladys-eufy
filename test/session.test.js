@@ -55,6 +55,25 @@ test('a verification code is asked, then handed to the pending login', async () 
   assert.equal(session.phase, PHASE.CONNECTED);
 });
 
+test('the free-text method of eufy-sdk is not pasted into the status', async () => {
+  const { statuses, session } = setup([
+    { status: '2fa', method: 'code sent via app-push/sendmsg/verify_code' },
+  ]);
+  await session.start(CONFIG);
+  assert.equal(
+    statuses.at(-1).message.fr,
+    'eufy a envoyé un code de vérification : saisissez-le dans le champ « Code de vérification » ci-dessous, puis enregistrez.',
+  );
+});
+
+test('an account without any supported device says how to share them', async () => {
+  const { statuses, session } = setup([{ status: 'ok' }], { deviceCount: 0 });
+  await session.start(CONFIG);
+  assert.equal(statuses.at(-1).connected, true);
+  assert.match(statuses.at(-1).message.fr, /accepter l’invitation/);
+  assert.match(statuses.at(-1).message.en, /List the raw devices/);
+});
+
 test('a captcha is written to the logs, then answered', async () => {
   const { client, session, statuses, logger } = setup([
     { status: 'captcha', image: CAPTCHA_IMAGE, retry: false },
@@ -77,6 +96,21 @@ test('a captcha is written to the logs, then answered', async () => {
   await session.submitVerificationCode('654321');
   assert.equal(session.phase, PHASE.CONNECTED);
   assert.deepEqual(client.calls.solveCaptcha, ['wrng', 'ab12']);
+});
+
+test('a refused verification code says how to get a new one', async () => {
+  const { session, statuses } = setup([{ status: '2fa' }, new Error('login failed: 26052')]);
+  await session.start(CONFIG);
+  await session.submitVerificationCode('000000');
+  assert.equal(statuses.at(-2).message.en, 'Connecting to eufy...', 'the code is being checked');
+  assert.equal(session.phase, PHASE.FAILED);
+  assert.match(statuses.at(-1).message.fr, /refusé le code de vérification/);
+});
+
+test('an unexplained failure says how to retry', async () => {
+  const { session, statuses } = setup([new Error('login failed: 26052')]);
+  await session.start(CONFIG);
+  assert.match(statuses.at(-1).message.en, /26052\. Save the configuration again to retry\./);
 });
 
 test('an answer without a pending question is ignored', async () => {
@@ -187,4 +221,66 @@ test('the outcome of a login started for a previous account is dropped', async (
   await first;
   assert.equal(session.phase, PHASE.VERIFICATION_CODE);
   assert.ok(statuses.every((status) => !status.connected));
+});
+
+const flush = () => new Promise((resolve) => setImmediate(resolve));
+
+test('failed realtime channels are restarted with a disconnect and a new login', async () => {
+  const { client, session, statuses, scheduleTimer } = setup([{ status: 'ok' }]);
+  client.realtime = { state: 'partial', push: { failed: 1 }, mqtt: { failed: 0 } };
+  await session.start(CONFIG);
+  await flush();
+  assert.equal(session.phase, PHASE.CONNECTED, 'commands keep working meanwhile');
+  assert.equal(statuses.at(-1).connected, false);
+  assert.match(statuses.at(-1).message.fr, /temps réel/);
+  assert.equal(scheduleTimer.active()[0].delayMs, 60_000);
+
+  await scheduleTimer.runAll();
+  await flush();
+  assert.equal(client.calls.disconnect, 1);
+  assert.equal(client.calls.login, 2);
+  assert.equal(scheduleTimer.active()[0].delayMs, 120_000, 'still failing: a longer delay');
+
+  client.realtime = { state: 'ready', push: { failed: 0 }, mqtt: { failed: 0 } };
+  await scheduleTimer.runAll();
+  await flush();
+  assert.equal(scheduleTimer.active().length, 0);
+  assert.equal(statuses.at(-1).connected, true);
+});
+
+test('a realtime startup that times out, or a failed wait, counts as failed', async () => {
+  for (const realtime of [{ state: 'timed-out' }, new Error('login() first')]) {
+    const { client, session, scheduleTimer } = setup([{ status: 'ok' }]);
+    client.waitForRealtime = async () => {
+      if (realtime instanceof Error) throw realtime;
+      return realtime;
+    };
+    await session.start(CONFIG);
+    await flush();
+    assert.equal(scheduleTimer.active().length, 1);
+  }
+});
+
+test('a failed wired P2P warm-up alone does not restart the realtime channels', async () => {
+  const { client, session, scheduleTimer } = setup([{ status: 'ok' }]);
+  client.realtime = {
+    state: 'partial',
+    push: { failed: 0 },
+    mqtt: { failed: 0 },
+    wiredP2p: { failed: 2 },
+  };
+  await session.start(CONFIG);
+  await flush();
+  assert.equal(scheduleTimer.active().length, 0);
+});
+
+test('a retried login disconnects first, so that the realtime channels restart', async () => {
+  const { client, session, scheduleTimer } = setup([
+    new TypeError('fetch failed'),
+    { status: 'ok' },
+  ]);
+  await session.start(CONFIG);
+  await scheduleTimer.runAll();
+  assert.equal(client.calls.disconnect, 1);
+  assert.equal(session.phase, PHASE.CONNECTED);
 });

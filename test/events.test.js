@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import {
   createEventBridge,
   MOTION_RESET_MS,
+  RESET_RETRY_MS,
   RING_RESET_MS,
   SNAPSHOT_ATTEMPTS,
+  STATES_RETRY_MS,
 } from '../src/events.js';
 import {
   makeFakeClient,
@@ -20,7 +22,7 @@ const DOORBELL = 'ext:eufy-test:eufy:D1';
 const SENSOR = 'ext:eufy-test:eufy:S1';
 
 async function setup() {
-  const gladys = makeFakeGladys();
+  const gladys = makeFakeGladys({ created: ['D1', 'S1'] });
   const doorbell = makeFakeDevice({
     sn: 'D1',
     name: 'Front door',
@@ -97,6 +99,20 @@ test('detections set motion to 1 and back to 0 after the last one', async () => 
   assert.deepEqual(gladys.statesOf(`${DOORBELL}:motion`), [1, 1, 0]);
 });
 
+test('a thumbnail already sent is not sent again, and at most 12 a minute', async () => {
+  const { gladys, client, doorbell } = await setup();
+  // One push: several detection events, one thumbnail.
+  await client.fire('motion', { deviceSn: 'D1' });
+  await client.fire('personDetected', { deviceSn: 'D1' });
+  assert.equal(gladys.calls.images.length, 1);
+
+  for (let quality = 10; quality < 25; quality += 1) {
+    doorbell.snapshots = [await makeJpeg(8, 8, quality)];
+    await client.fire('motion', { deviceSn: 'D1' });
+  }
+  assert.equal(gladys.calls.images.length, 12);
+});
+
 test('a pending thumbnail is waited for', async () => {
   const { gladys, client, doorbell, sleep } = await setup();
   const jpeg = await makeJpeg();
@@ -141,7 +157,7 @@ test('a contact change publishes the new value only once', async () => {
 });
 
 test('commandUnconfirmed republishes what the device actually reports', async () => {
-  const gladys = makeFakeGladys();
+  const gladys = makeFakeGladys({ created: ['L1'] });
   const lock = makeFakeDevice({ sn: 'L1', capabilities: ['lock'], values: { locked: true } });
   const bridge = createEventBridge({
     gladys,
@@ -208,9 +224,89 @@ test('forget makes a device publish everything again', async () => {
   assert.deepEqual(gladys.statesOf(`${DOORBELL}:battery`), [80, 80]);
 });
 
-test('stop cancels the pending resets', async () => {
-  const { client, bridge, scheduleTimer } = await setup();
+test('the states of a device go in one request, retried a minute after a failure', async () => {
+  const { gladys, bridge, doorbell, scheduleTimer } = await setup();
+  gladys.publishError = new Error('Gladys restarting');
+  await bridge.publishDeviceStates(doorbell);
+  await bridge.publishDeviceStates(doorbell);
+  assert.deepEqual(
+    scheduleTimer.active().map((timer) => timer.delayMs),
+    [STATES_RETRY_MS],
+    'one retry per device',
+  );
+  gladys.publishError = null;
+  await scheduleTimer.runAll();
+  assert.deepEqual(gladys.calls.batches, [3], 'battery, ring and motion at once');
+  assert.deepEqual(gladys.statesOf(`${DOORBELL}:battery`), [80]);
+});
+
+test('the states wait for the 300 per minute budget instead of a 429', async () => {
+  const gladys = makeFakeGladys({ created: ['D1'] });
+  let clock = 0;
+  const sleep = async (delayMs) => {
+    clock += delayMs;
+  };
+  const bridge = createEventBridge({
+    gladys,
+    registry: new Map(),
+    logger: silentLogger,
+    scheduleTimer: makeFakeTimer(),
+    sleep,
+    onDevicesChanged: () => {},
+    now: () => clock,
+  });
+  for (let i = 0; i < 300; i += 1) {
+    await bridge.publish(`${DOORBELL}:f${i}`, 1);
+    clock += 10;
+  }
+  assert.equal(clock, 3_000);
+  await bridge.publish(`${DOORBELL}:last`, 1);
+  assert.equal(clock, 60_000, 'waited until the first state left the window');
+  assert.equal(gladys.calls.states.length, 301);
+});
+
+test('nothing is published for a device the user did not create', async () => {
+  const { gladys, client, bridge, doorbell, scheduleTimer } = await setup();
+  gladys.devices = [{ external_id: `${DOORBELL}0` }];
   await client.fire('motion', { deviceSn: 'D1' });
-  bridge.stop();
+  await scheduleTimer.runAll();
+  await bridge.publishDeviceStates(doorbell);
+  assert.deepEqual(gladys.calls.states, []);
+  assert.deepEqual(gladys.calls.images, []);
+  assert.equal(gladys.calls.sceneEvents.length, 1, 'scene events do not need a device');
+
+  gladys.devices.push({ external_id: DOORBELL });
+  bridge.forget('D1');
+  await bridge.publishDeviceStates(doorbell);
+  assert.deepEqual(gladys.statesOf(`${DOORBELL}:battery`), [80]);
+});
+
+test('stop cancels the pending resets and publishes their 0 at once', async () => {
+  const { gladys, client, bridge, scheduleTimer } = await setup();
+  await client.fire('motion', { deviceSn: 'D1' });
+  await bridge.stop();
   assert.equal(scheduleTimer.active().length, 0);
+  assert.deepEqual(gladys.statesOf(`${DOORBELL}:motion`), [1, 0]);
+});
+
+test('a failed reset is retried', async () => {
+  const { gladys, client, scheduleTimer } = await setup();
+  await client.fire('doorbellPress', { deviceSn: 'D1' });
+  gladys.publishError = new Error('Gladys down');
+  await scheduleTimer.runAll();
+  gladys.publishError = null;
+  assert.equal(scheduleTimer.active()[0].delayMs, RESET_RETRY_MS);
+  await scheduleTimer.runAll();
+  assert.deepEqual(gladys.statesOf(`${DOORBELL}:ring`), [1, 0]);
+});
+
+test('the device states set the pulses back to 0, unless an event is in progress', async () => {
+  const { gladys, client, bridge, doorbell } = await setup();
+  await bridge.publishDeviceStates(doorbell);
+  assert.deepEqual(gladys.statesOf(`${DOORBELL}:ring`), [0]);
+  assert.deepEqual(gladys.statesOf(`${DOORBELL}:motion`), [0]);
+
+  await client.fire('motion', { deviceSn: 'D1' });
+  await bridge.publishDeviceStates(doorbell);
+  assert.deepEqual(gladys.statesOf(`${DOORBELL}:motion`), [0, 1]);
 });

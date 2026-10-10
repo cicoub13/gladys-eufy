@@ -14,11 +14,25 @@
 // again (see handlers.js).
 // -----------------------------------------------------------------------------
 
+import { createHash } from 'node:crypto';
 import { deviceIds, featuresOf, readStates } from './mapping.js';
 import { toGladysImage } from './image.js';
+import { createQueue } from './queue.js';
 
 export const MOTION_RESET_MS = 30_000;
 export const RING_RESET_MS = 5_000;
+export const RESET_RETRY_MS = 30_000;
+
+/** Pulse features: 0 unless an event is in progress. */
+const PULSE_KEYS = ['ring', 'motion'];
+
+// Host API limits: 300 states per minute per integration, 12 images per minute
+// per camera.
+const STATES_PER_MINUTE = 300;
+const IMAGES_PER_MINUTE = 12;
+const RATE_WINDOW_MS = 60_000;
+export const STATES_RETRY_MS = 60_000;
+
 export const SNAPSHOT_FIRST_DELAY_MS = 1_000;
 export const SNAPSHOT_RETRY_DELAY_MS = 2_000;
 export const SNAPSHOT_ATTEMPTS = 4;
@@ -42,6 +56,13 @@ const STATE_EVENTS = [
   'commandUnconfirmed',
 ];
 
+/** A value as the host API takes it: a number, or `{ text }` for a select. */
+function toState(featureId, value) {
+  return typeof value === 'object'
+    ? { device_feature_external_id: featureId, text: value.text }
+    : { device_feature_external_id: featureId, state: value };
+}
+
 /**
  * @param {object} deps
  * @param {object} deps.gladys
@@ -50,6 +71,7 @@ const STATE_EVENTS = [
  * @param {(fn: Function, delayMs: number) => Function} deps.scheduleTimer Returns a cancel function.
  * @param {(delayMs: number) => Promise<void>} deps.sleep
  * @param {() => void} deps.onDevicesChanged Called when the device list changed.
+ * @param {() => number} [deps.now]
  */
 export function createEventBridge({
   gladys,
@@ -58,6 +80,7 @@ export function createEventBridge({
   scheduleTimer,
   sleep,
   onDevicesChanged,
+  now = Date.now,
 }) {
   // Last value published per feature external_id, to publish changes only.
   const published = new Map();
@@ -65,42 +88,130 @@ export function createEventBridge({
   const resets = new Map();
   // Serial numbers with a thumbnail fetch in flight.
   const fetching = new Set();
+  // Pending republications of the states of a device, per serial number.
+  const retries = new Map();
+  // Accepted state batches of the last minute: { at, count }.
+  const sent = [];
+  // Last image published per serial number, and when the last ones were.
+  const images = new Map();
+  const queuePublish = createQueue();
 
   const hasFeature = (dev, key) => featuresOf(dev).some((spec) => spec.key === key);
 
-  async function publish(featureId, value, { force = false } = {}) {
-    const serialized = JSON.stringify(value);
-    if (!force && published.get(featureId) === serialized) {
-      return;
+  // Gladys drops the states of a device the user did not create (they still
+  // count in its rate limit) and refuses its images: they are skipped, and
+  // `forget()` republishes everything once the device is created.
+  const created = (externalId) =>
+    gladys.devices.some(
+      (device) =>
+        externalId === device.external_id || externalId.startsWith(`${device.external_id}:`),
+    );
+
+  /**
+   * Hold back until `count` more states fit in the 300 per minute of the
+   * integration: a 429 would lose them, a short wait does not.
+   */
+  async function waitForBudget(count) {
+    for (;;) {
+      while (sent.length > 0 && sent[0].at <= now() - RATE_WINDOW_MS) {
+        sent.shift();
+      }
+      const used = sent.reduce((total, entry) => total + entry.count, 0);
+      if (used + count <= STATES_PER_MINUTE || sent.length === 0) {
+        return;
+      }
+      const waitMs = sent[0].at + RATE_WINDOW_MS - now();
+      logger.warn(`Gladys state rate limit reached, waiting ${Math.ceil(waitMs / 1000)} s`);
+      await sleep(waitMs);
     }
+  }
+
+  async function publishNow(entries) {
+    const changed = entries.filter(
+      ({ featureId, value, force }) =>
+        created(featureId) && (force || published.get(featureId) !== JSON.stringify(value)),
+    );
+    if (changed.length === 0) {
+      return true;
+    }
+    await waitForBudget(changed.length);
     try {
-      await gladys.publishState(featureId, value);
-      // Recorded only once accepted, so a failed publish is retried next time.
-      published.set(featureId, serialized);
+      await gladys.publishStates(changed.map(({ featureId, value }) => toState(featureId, value)));
     } catch (err) {
-      logger.warn(`Failed to publish the state of ${featureId}:`, err?.message ?? err);
+      logger.warn(
+        `Failed to publish ${changed.map(({ featureId }) => featureId).join(', ')}:`,
+        err?.message ?? err,
+      );
+      return false;
     }
+    sent.push({ at: now(), count: changed.length });
+    // Recorded only once accepted, so a failed publish is retried next time.
+    for (const { featureId, value } of changed) {
+      published.set(featureId, JSON.stringify(value));
+    }
+    return true;
+  }
+
+  /**
+   * Publish the states of ONE device in one request (a device has far fewer
+   * than the 100 a request takes), one request at a time so that the rate
+   * budget holds. Resolves with whether Gladys has them all (or does not
+   * want them).
+   *
+   * @param {{ featureId: string, value: number | { text: string }, force?: boolean }[]} entries
+   */
+  function publishStates(entries) {
+    return queuePublish(() => publishNow(entries));
+  }
+
+  function publish(featureId, value, { force = false } = {}) {
+    return publishStates([{ featureId, value, force }]);
   }
 
   /** Publish the current values of a device (only the changed ones). */
   async function publishDeviceStates(dev) {
     const ids = deviceIds(gladys, dev.sn);
-    for (const { key, value } of readStates(dev)) {
-      await publish(ids.feature(key), value);
+    const entries = readStates(dev).map(({ key, value }) => ({
+      featureId: ids.feature(key),
+      value,
+    }));
+    // A pulse without an event in progress is 0: this also clears a 1 left by
+    // a reset that failed, or that a restart cancelled.
+    for (const key of PULSE_KEYS) {
+      const featureId = ids.feature(key);
+      if (hasFeature(dev, key) && !resets.has(featureId)) {
+        entries.push({ featureId, value: 0 });
+      }
     }
+    if (!(await publishStates(entries)) && !retries.has(dev.sn)) {
+      retries.set(
+        dev.sn,
+        scheduleTimer(() => {
+          retries.delete(dev.sn);
+          const current = registry.get(dev.sn);
+          return current ? publishDeviceStates(current) : undefined;
+        }, STATES_RETRY_MS),
+      );
+    }
+  }
+
+  function scheduleReset(featureId, delayMs) {
+    resets.get(featureId)?.();
+    resets.set(
+      featureId,
+      scheduleTimer(async () => {
+        resets.delete(featureId);
+        if (!(await publish(featureId, 0)) && !resets.has(featureId)) {
+          scheduleReset(featureId, RESET_RETRY_MS);
+        }
+      }, delayMs),
+    );
   }
 
   /** Set a binary feature to 1, and back to 0 once the event is over. */
   async function pulse(dev, key, resetMs) {
     const featureId = deviceIds(gladys, dev.sn).feature(key);
-    resets.get(featureId)?.();
-    resets.set(
-      featureId,
-      scheduleTimer(() => {
-        resets.delete(featureId);
-        return publish(featureId, 0);
-      }, resetMs),
-    );
+    scheduleReset(featureId, resetMs);
     await publish(featureId, 1, { force: true });
   }
 
@@ -117,11 +228,32 @@ export function createEventBridge({
   }
 
   /**
+   * One push fires several detection events (motion, person...) carrying the
+   * same thumbnail, and Gladys takes 12 images per minute per camera: an image
+   * already sent within the minute, or one over the limit, is skipped.
+   */
+  async function publishImage(sn, deviceId, jpeg) {
+    const hash = createHash('sha1').update(jpeg).digest('hex');
+    const last = images.get(sn) ?? { hash: null, at: [] };
+    const recent = last.at.filter((at) => at > now() - RATE_WINDOW_MS);
+    if (last.hash === hash && recent.length > 0) {
+      return;
+    }
+    if (recent.length >= IMAGES_PER_MINUTE) {
+      logger.debug(`Thumbnail of ${sn} skipped: ${IMAGES_PER_MINUTE} images in the last minute`);
+      return;
+    }
+    await gladys.publishCameraImage(deviceId, toGladysImage(jpeg));
+    images.set(sn, { hash, at: [...recent, now()] });
+  }
+
+  /**
    * Publish the push thumbnail of a camera. The SDK downloads it when the push
    * arrives, so it may still be pending when the event fires.
    */
   async function publishThumbnail(dev) {
-    if (!hasFeature(dev, 'image') || fetching.has(dev.sn)) {
+    const deviceId = deviceIds(gladys, dev.sn).device;
+    if (!hasFeature(dev, 'image') || !created(deviceId) || fetching.has(dev.sn)) {
       return;
     }
     fetching.add(dev.sn);
@@ -134,7 +266,7 @@ export function createEventBridge({
             return;
           }
           const jpeg = await camera.snapshotStored();
-          await gladys.publishCameraImage(deviceIds(gladys, dev.sn).device, toGladysImage(jpeg));
+          await publishImage(dev.sn, deviceId, jpeg);
           return;
         } catch (err) {
           if (err?.reason === 'pending' && attempt < SNAPSHOT_ATTEMPTS) {
@@ -245,11 +377,15 @@ export function createEventBridge({
       published.clear();
     },
 
-    stop() {
-      for (const cancel of resets.values()) {
+    /** Cancel the pending resets, and publish their 0 right away. */
+    async stop() {
+      const pending = [...resets.keys()];
+      for (const cancel of [...resets.values(), ...retries.values()]) {
         cancel();
       }
       resets.clear();
+      retries.clear();
+      await Promise.all(pending.map((featureId) => publish(featureId, 0)));
     },
   };
 }

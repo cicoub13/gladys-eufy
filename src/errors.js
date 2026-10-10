@@ -88,8 +88,8 @@ export function describeEufyError(err) {
   // Unknown causes keep the raw text: a message the user can paste into an
   // issue beats a reassuring but useless generic sentence.
   const message = MESSAGES[kind] ?? {
-    en: `Connection to eufy failed: ${text}`,
-    fr: `La connexion à eufy a échoué : ${text}`,
+    en: `Connection to eufy failed: ${text}. Save the configuration again to retry.`,
+    fr: `La connexion à eufy a échoué : ${text}. Enregistrez de nouveau la configuration pour réessayer.`,
   };
   return { kind, transient: TRANSIENT_KINDS.has(kind), text, message };
 }

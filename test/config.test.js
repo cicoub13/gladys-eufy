@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isComplete, normalizeConfig, sameAccount } from '../src/config.js';
+import { isComplete, isValidCountry, normalizeConfig, sameAccount } from '../src/config.js';
 
 test('normalizeConfig trims the fields but never the password', () => {
   const config = normalizeConfig({
@@ -14,15 +14,27 @@ test('normalizeConfig trims the fields but never the password', () => {
     email: 'me@example.com',
     password: ' secret ',
     country: 'DE',
+    allowUnlock: false,
+    allowDisarm: false,
     verificationCode: '123456',
     captchaAnswer: 'ab12',
   });
 });
 
-test('normalizeConfig falls back to FR on a missing or invalid country', () => {
+test('unlocking and disarming are off unless switched on', () => {
+  assert.equal(normalizeConfig({}).allowUnlock, false);
+  assert.equal(normalizeConfig({ allow_unlock: 'yes' }).allowUnlock, false);
+  assert.equal(normalizeConfig({ allow_unlock: true }).allowUnlock, true);
+  assert.equal(normalizeConfig({ allow_disarm: 'true' }).allowDisarm, true);
+});
+
+test('normalizeConfig falls back to FR on a missing country, keeps an invalid one', () => {
   assert.equal(normalizeConfig({}).country, 'FR');
-  assert.equal(normalizeConfig({ country: 'France' }).country, 'FR');
   assert.equal(normalizeConfig({ country: 42 }).country, 'FR');
+  const invalid = normalizeConfig({ country: 'France' });
+  assert.equal(invalid.country, 'FRANCE');
+  assert.equal(isValidCountry(invalid), false);
+  assert.equal(isValidCountry(normalizeConfig({ country: 'de' })), true);
 });
 
 test('isComplete needs an email and a password', () => {
