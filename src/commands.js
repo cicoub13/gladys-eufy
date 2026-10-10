@@ -12,6 +12,9 @@ import { deviceIds, isArmingMode } from './mapping.js';
 
 export const COMMAND_TIMEOUT_MS = 4_000;
 
+/** Guard modes that disarm the HomeBase. */
+const DISARMING_MODES = new Set(['off', 'disarmed']);
+
 function withTimeout(promise, ms, label) {
   let timer;
   const timeout = new Promise((_, reject) => {
@@ -40,6 +43,9 @@ function lockTarget(value) {
  * @param {Map<string, object>} deps.registry eufy devices by serial number.
  * @param {ReturnType<import('./events.js').createEventBridge>} deps.events
  * @param {object} deps.logger
+ * @param {() => { allowUnlock: boolean, allowDisarm: boolean }} deps.permissions
+ *   Any Gladys user, scene or connected voice assistant can send a command:
+ *   unlocking and disarming are refused unless the configuration allows them.
  * @param {number} [deps.timeoutMs]
  */
 export function createCommands({
@@ -47,6 +53,7 @@ export function createCommands({
   registry,
   events,
   logger,
+  permissions,
   timeoutMs = COMMAND_TIMEOUT_MS,
 }) {
   /** Find the eufy device and the feature key a Gladys feature designates. */
@@ -78,6 +85,11 @@ export function createCommands({
         if (locked === null) {
           throw new Error(`Invalid lock command: ${JSON.stringify(value)}`);
         }
+        if (!locked && !permissions().allowUnlock) {
+          throw new Error(
+            'Unlocking from Gladys is disabled: switch on "Allow unlocking" in the configuration of the integration',
+          );
+        }
         const lock = dev.lock?.();
         if (!lock) {
           throw new Error(`${dev.sn} cannot be locked from Gladys`);
@@ -91,6 +103,11 @@ export function createCommands({
       if (key === 'arming') {
         if (!isArmingMode(value)) {
           throw new Error(`Unknown guard mode: ${JSON.stringify(value)}`);
+        }
+        if (DISARMING_MODES.has(value) && !permissions().allowDisarm) {
+          throw new Error(
+            'Disarming from Gladys is disabled: switch on "Allow disarming" in the configuration of the integration',
+          );
         }
         const setMode = dev.arming?.()?.setMode;
         if (typeof setMode !== 'function') {

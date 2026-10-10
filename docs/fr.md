@@ -7,9 +7,9 @@ Intégrez vos appareils eufy Security dans Gladys : caméras, sonnettes vidéo, 
 - **Caméras et sonnettes** : l'image publiée est la miniature envoyée par eufy à chaque détection ou appui sur la sonnette. Elle s'affiche dans la boîte caméra du tableau de bord. Une scène qui envoie l'image de la caméra sur un appui sonnette attend quelques secondes son arrivée.
 - **Sonnette** : un appui passe la fonctionnalité « sonnette » à 1, puis elle revient à 0 au bout de 5 s.
 - **Mouvement** : chaque détection passe le capteur de mouvement à 1, puis il revient à 0 au bout de 30 s sans nouvelle détection. Sont concernés les mouvements, personnes, inconnus, véhicules et animaux, sur les caméras comme sur les capteurs PIR.
-- **Serrures** : verrouiller et déverrouiller depuis Gladys, avec leur niveau de batterie.
+- **Serrures** : verrouiller depuis Gladys, avec leur niveau de batterie. Le déverrouillage demande d'activer **Autoriser le déverrouillage depuis Gladys** dans la configuration : tout utilisateur, toute scène ou tout assistant vocal relié à Gladys pourrait alors ouvrir la porte.
 - **Capteurs** : ouverture de porte ou de fenêtre, fuite d'eau, fumée, monoxyde de carbone, sirène active.
-- **HomeBase** : lire et changer le mode d'armement (absent, à la maison, planning, personnalisé 1 à 3, désarmé…).
+- **HomeBase** : lire et changer le mode d'armement (absent, à la maison, planning, personnalisé 1 à 3, désarmé…). Désarmé et Off demandent d'activer **Autoriser le désarmement depuis Gladys** dans la configuration.
 - **Batterie** : niveau, charge en cours, alerte de batterie faible.
 - **Scènes** : déclencheurs « Sonnette eufy pressée », « Mouvement détecté par eufy » (filtrable par personne, inconnu, véhicule ou animal), « Colis livré » et « Alarme eufy déclenchée ».
 

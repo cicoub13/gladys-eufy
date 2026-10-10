@@ -70,6 +70,32 @@
       "required": true
     },
     {
+      "key": "allow_unlock",
+      "type": "boolean",
+      "label": {
+        "en": "Allow unlocking from Gladys",
+        "fr": "Autoriser le déverrouillage depuis Gladys"
+      },
+      "description": {
+        "en": "Off: locks can be locked from Gladys, not unlocked. On: any Gladys user, scene or voice assistant connected to Gladys can open the door.",
+        "fr": "Désactivé : les serrures peuvent être verrouillées depuis Gladys, pas déverrouillées. Activé : tout utilisateur, toute scène ou tout assistant vocal relié à Gladys peut ouvrir la porte."
+      },
+      "default": false
+    },
+    {
+      "key": "allow_disarm",
+      "type": "boolean",
+      "label": {
+        "en": "Allow disarming from Gladys",
+        "fr": "Autoriser le désarmement depuis Gladys"
+      },
+      "description": {
+        "en": "Off: the guard mode cannot be set to Disarmed or Off from Gladys. On: any Gladys user, scene or voice assistant connected to Gladys can disarm the HomeBase.",
+        "fr": "Désactivé : le mode d'armement ne peut pas passer à Désarmé ou Off depuis Gladys. Activé : tout utilisateur, toute scène ou tout assistant vocal relié à Gladys peut désarmer la HomeBase."
+      },
+      "default": false
+    },
+    {
       "key": "login_intro",
       "type": "section",
       "label": {

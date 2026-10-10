@@ -7,9 +7,9 @@ Bring your eufy Security devices into Gladys: cameras, video doorbells, smart lo
 - **Cameras and doorbells**: the image shown in the dashboard camera box is the thumbnail eufy sends with each detection or doorbell press. A scene that sends the camera image on a doorbell press waits a few seconds for it to arrive.
 - **Doorbell**: a press sets the "doorbell" feature to 1, back to 0 after 5 s.
 - **Motion**: each detection (motion, person, stranger, vehicle, pet, on cameras and PIR sensors) sets the motion sensor to 1, back to 0 after 30 s without a new one.
-- **Locks**: lock and unlock from Gladys, battery level.
+- **Locks**: lock from Gladys, battery level. Unlocking needs **Allow unlocking from Gladys** in the configuration: any Gladys user, scene or voice assistant connected to Gladys could then open the door.
 - **Sensors**: door/window opening, water leak, smoke, carbon monoxide, siren active.
-- **HomeBase**: read and change the guard mode (away, home, schedule, custom 1 to 3, disarmed...).
+- **HomeBase**: read and change the guard mode (away, home, schedule, custom 1 to 3, disarmed...). Disarmed and Off need **Allow disarming from Gladys** in the configuration.
 - **Battery**: level, charging, low battery alert.
 - **Scenes**: "eufy doorbell pressed", "eufy motion detected" (filter on person, stranger, vehicle or pet), "eufy package delivered" and "eufy alarm triggered" triggers.
 

@@ -63,6 +63,8 @@ export function createHandlers({
   const queueDevices = createQueue();
   const queueConfig = createQueue();
   let account = null;
+  // Read at each command: switching them needs no new login.
+  let permissions = { allowUnlock: false, allowDisarm: false };
   let cancelRefresh = null;
   // The answers already handed to a login: if Gladys does not empty the form
   // fields, saving the form again must not replay a used code.
@@ -76,7 +78,13 @@ export function createHandlers({
     sleep,
     onDevicesChanged: () => scheduleRefresh(),
   });
-  const commands = createCommands({ gladys, registry, events, logger });
+  const commands = createCommands({
+    gladys,
+    registry,
+    events,
+    logger,
+    permissions: () => permissions,
+  });
 
   async function setStatus(connected, message) {
     try {
@@ -203,6 +211,7 @@ export function createHandlers({
 
   async function applyConfigNow(raw, { reconnect = false } = {}) {
     const config = normalizeConfig(raw);
+    permissions = { allowUnlock: config.allowUnlock, allowDisarm: config.allowDisarm };
 
     if (!isComplete(config)) {
       account = config;

@@ -15,7 +15,7 @@ const LOCK_FEATURE = { external_id: 'ext:eufy-test:eufy:L1:lock' };
 const HOMEBASE = { external_id: 'ext:eufy-test:eufy:H1' };
 const ARMING_FEATURE = { external_id: 'ext:eufy-test:eufy:H1:arming' };
 
-function setup({ timeoutMs } = {}) {
+function setup({ timeoutMs, allowUnlock = true, allowDisarm = true } = {}) {
   const gladys = makeFakeGladys({ created: ['L1', 'H1'] });
   const lock = makeFakeDevice({ sn: 'L1', capabilities: ['lock'], values: { locked: false } });
   const homebase = makeFakeDevice({ sn: 'H1', capabilities: ['arming', 'siren'] });
@@ -31,7 +31,14 @@ function setup({ timeoutMs } = {}) {
     sleep: makeFakeSleep(),
     onDevicesChanged: () => {},
   });
-  const commands = createCommands({ gladys, registry, events, logger: silentLogger, timeoutMs });
+  const commands = createCommands({
+    gladys,
+    registry,
+    events,
+    logger: silentLogger,
+    permissions: () => ({ allowUnlock, allowDisarm }),
+    timeoutMs,
+  });
   return { gladys, lock, homebase, commands };
 }
 
@@ -51,6 +58,21 @@ test('a lock command that is not exactly 0 or 1 never unlocks', async () => {
   }
   assert.equal(lock.calls.unlock, 0);
   assert.equal(lock.calls.lock, 0);
+});
+
+test('unlocking and disarming are refused unless the configuration allows them', async () => {
+  const { gladys, lock, homebase, commands } = setup({ allowUnlock: false, allowDisarm: false });
+  await assert.rejects(commands.setValue(LOCK, LOCK_FEATURE, 0), /Allow unlocking/);
+  await commands.setValue(LOCK, LOCK_FEATURE, 1);
+  assert.equal(lock.calls.unlock, 0);
+  assert.equal(lock.calls.lock, 1, 'locking stays allowed');
+
+  for (const mode of ['off', 'disarmed']) {
+    await assert.rejects(commands.setValue(HOMEBASE, ARMING_FEATURE, mode), /Allow disarming/);
+  }
+  await commands.setValue(HOMEBASE, ARMING_FEATURE, 'home');
+  assert.deepEqual(homebase.calls.setMode, ['home']);
+  assert.deepEqual(gladys.statesOf(LOCK_FEATURE.external_id), [1]);
 });
 
 test('a lock that does not answer fails within the timeout', async () => {

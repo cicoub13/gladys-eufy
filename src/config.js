@@ -15,6 +15,8 @@ export const DEFAULT_CONFIG = {
   email: '',
   password: '',
   country: DEFAULT_COUNTRY,
+  allow_unlock: false,
+  allow_disarm: false,
   verification_code: '',
   captcha_answer: '',
 };
@@ -23,12 +25,16 @@ export const DEFAULT_CONFIG = {
 export const ANSWER_KEYS = ['verification_code', 'captcha_answer'];
 
 const text = (value) => (typeof value === 'string' ? value.trim() : '');
+// Off unless explicitly switched on.
+const flag = (value) => value === true || value === 'true';
 
 /**
  * @typedef {object} EufyConfig
  * @property {string} email
  * @property {string} password
  * @property {string} country Two-letter ISO code, routes the eufy region.
+ * @property {boolean} allowUnlock Whether Gladys may unlock a lock.
+ * @property {boolean} allowDisarm Whether Gladys may disarm a HomeBase.
  * @property {string} verificationCode
  * @property {string} captchaAnswer
  */
@@ -46,6 +52,8 @@ export function normalizeConfig(raw = {}) {
     // Never trimmed: a password may legitimately start or end with a space.
     password: typeof raw.password === 'string' ? raw.password : '',
     country: /^[A-Z]{2}$/.test(country) ? country : DEFAULT_COUNTRY,
+    allowUnlock: flag(raw.allow_unlock),
+    allowDisarm: flag(raw.allow_disarm),
     verificationCode: text(raw.verification_code),
     captchaAnswer: text(raw.captcha_answer),
   };

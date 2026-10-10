@@ -376,13 +376,19 @@ test('shutdown gives up on a connection that does not close', async () => {
   await shutdown;
 });
 
-test('setValue is routed to the device', async () => {
-  const { handlers, gladys } = setup();
+test('setValue is routed to the device, unlocking once the configuration allows it', async () => {
+  const { handlers, gladys, clients } = setup();
   await handlers.gladysConnected();
-  await handlers.setValue(
-    { external_id: 'ext:eufy-test:eufy:L1' },
-    { external_id: 'ext:eufy-test:eufy:L1:lock' },
-    0,
-  );
+  const unlock = () =>
+    handlers.setValue(
+      { external_id: 'ext:eufy-test:eufy:L1' },
+      { external_id: 'ext:eufy-test:eufy:L1:lock' },
+      0,
+    );
+  await assert.rejects(unlock(), /Allow unlocking/);
+
+  await handlers.configUpdated({ ...ACCOUNT, allow_unlock: true });
+  await unlock();
+  assert.equal(clients.length, 1, 'no new login');
   assert.deepEqual(gladys.statesOf('ext:eufy-test:eufy:L1:lock'), [1, 0]);
 });
