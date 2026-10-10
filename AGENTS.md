@@ -11,8 +11,10 @@ are in `CHANGELOG.md`.
 - `events.attach(client)` runs BEFORE `login()`: eufy-sdk emits from the first push.
 - On login `ok`: `refreshDevices` = `getDevices()` (plain records) → `getDevice(sn)` (the
   capability-driven `Device`) → `buildDevice` → `publishDiscoveredDevices` → states.
-- `registry` (sn → `Device`) MUST keep the `Device` objects: eufy-sdk holds them weakly, a dropped
-  one stops announcing `propertyChanged`.
+- `registry` (sn → supported `Device`) and `held` (sn → every `Device` fetched) MUST keep the
+  `Device` objects: eufy-sdk holds them weakly, a dropped one stops announcing `propertyChanged`.
+- `getDevice(sn)` replaces, in eufy-sdk, the object announcements go to: never call it for a
+  serial already in `held` (e.g. `dump_devices` reuses `held`).
 - Push, not poll: `should_poll: false`, no `onPoll`. State events re-read the device through the
   capability getters (`mapping.readStates`) and `events.publish` only sends changed values.
 - States published before the user creates the device are dropped by Gladys:

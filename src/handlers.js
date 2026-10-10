@@ -38,9 +38,13 @@ export function createHandlers({
   scheduleTimer = defaultScheduleTimer,
   sleep = defaultSleep,
 }) {
-  // eufy-sdk holds its `Device` objects weakly: this map keeps them alive, or
-  // their property changes would stop being announced.
+  // Supported eufy devices by serial number.
   const registry = new Map();
+  // Every eufy `Device` fetched, supported or not. eufy-sdk holds them weakly
+  // and announces property changes against the last one `getDevice()` built
+  // for a serial: this map keeps them alive, or the announcements would stop.
+  // Never call `getDevice()` for a serial already held.
+  const held = new Map();
   let account = null;
   let cancelRefresh = null;
   // The answers already handed to a login: if Gladys does not empty the form
@@ -70,6 +74,7 @@ export function createHandlers({
     const records = await client.getDevices();
     const devices = [];
     registry.clear();
+    held.clear();
     for (const record of records) {
       let dev;
       try {
@@ -78,6 +83,7 @@ export function createHandlers({
         logger.warn(`Failed to read the eufy device ${record.sn}:`, err?.message ?? err);
         continue;
       }
+      held.set(dev.sn, dev);
       const device = buildDevice(gladys, dev);
       if (device) {
         registry.set(dev.sn, dev);
@@ -140,6 +146,7 @@ export function createHandlers({
       account = config;
       events.stop();
       registry.clear();
+      held.clear();
       await session.stop();
       await setStatus(false, MISSING_CONFIG);
       return;
@@ -224,7 +231,11 @@ export function createHandlers({
       const records = await client.getDevices();
       for (const record of records) {
         try {
-          const dev = await client.getDevice(record.sn);
+          let dev = held.get(record.sn);
+          if (!dev) {
+            dev = await client.getDevice(record.sn);
+            held.set(dev.sn, dev);
+          }
           logger.info(
             `eufy device ${JSON.stringify({
               sn: dev.sn,

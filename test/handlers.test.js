@@ -209,6 +209,44 @@ test('the actions report the connection and dump the devices', async () => {
   assert.match((await handlers.actions.dump_devices()).en, /3 device/);
 });
 
+test('dump_devices reuses the devices already held', async () => {
+  const { handlers, clients } = setup();
+  await handlers.gladysConnected();
+  // A new `getDevice()` would replace, in the SDK, the device the property
+  // changes are announced against.
+  const fetched = [];
+  const getDevice = clients[0].getDevice;
+  clients[0].getDevice = (sn) => {
+    fetched.push(sn);
+    return getDevice(sn);
+  };
+  await handlers.actions.dump_devices();
+  assert.deepEqual(fetched, []);
+});
+
+test('dump_devices fetches, then holds, a device the refresh could not read', async () => {
+  const { handlers, clients } = setup({
+    loginResults: [{ status: '2fa' }, { status: 'ok' }],
+  });
+  await handlers.gladysConnected();
+  const getDevice = clients[0].getDevice;
+  const fetched = [];
+  let failing = true;
+  clients[0].getDevice = (sn) => {
+    fetched.push(sn);
+    if (sn === 'V1' && failing) {
+      throw new Error('timeout');
+    }
+    return getDevice(sn);
+  };
+  await handlers.configUpdated({ ...ACCOUNT, verification_code: '123456' });
+  failing = false;
+  fetched.length = 0;
+  await handlers.actions.dump_devices();
+  await handlers.actions.dump_devices();
+  assert.deepEqual(fetched, ['V1'], 'fetched once, then held');
+});
+
 test('shutdown closes the eufy session', async () => {
   const { handlers, clients } = setup();
   await handlers.gladysConnected();
