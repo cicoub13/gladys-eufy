@@ -55,6 +55,17 @@ test('a verification code is asked, then handed to the pending login', async () 
   assert.equal(session.phase, PHASE.CONNECTED);
 });
 
+test('the free-text method of eufy-sdk is not pasted into the status', async () => {
+  const { statuses, session } = setup([
+    { status: '2fa', method: 'code sent via app-push/sendmsg/verify_code' },
+  ]);
+  await session.start(CONFIG);
+  assert.equal(
+    statuses.at(-1).message.fr,
+    'eufy a envoyé un code de vérification : saisissez-le dans le champ « Code de vérification » ci-dessous, puis enregistrez.',
+  );
+});
+
 test('a captcha is written to the logs, then answered', async () => {
   const { client, session, statuses, logger } = setup([
     { status: 'captcha', image: CAPTCHA_IMAGE, retry: false },

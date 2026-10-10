@@ -39,11 +39,18 @@ export function realtimeUnavailable(delayMs) {
   );
 }
 
+const CODE_CHANNELS = {
+  email: { en: ' by email', fr: ' par email' },
+  sms: { en: ' by SMS', fr: ' par SMS' },
+};
+
 /**
- * @param {string} [method] How eufy sent the code ("email", "sms"...).
+ * @param {string} [method] How eufy sent the code. eufy-sdk describes it in
+ *   free text ("code sent via app-push/sendmsg/verify_code"): only a known
+ *   channel is named.
  */
 export function verificationCodeRequired(method) {
-  const by = method ? { en: ` by ${method}`, fr: ` par ${method}` } : { en: '', fr: '' };
+  const by = Object.hasOwn(CODE_CHANNELS, method) ? CODE_CHANNELS[method] : { en: '', fr: '' };
   return {
     en: `eufy sent a verification code${by.en}: type it in the "Verification code" field below, then save.`,
     fr: `eufy a envoyé un code de vérification${by.fr} : saisissez-le dans le champ « Code de vérification » ci-dessous, puis enregistrez.`,
