@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +9,7 @@ import {
   ACCOUNT_FILE,
   createEufyClient,
   dropOtherAccountSession,
+  JsonFileStore,
   PUSH_FILE,
   SESSION_FILE,
   toEufyLogger,
@@ -43,6 +44,30 @@ test('the client is built without any network access, its data dir created', asy
     await client.disconnect();
   } finally {
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('the store writes through a renamed file, and logs a failed write', async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), 'gladys-eufy-'));
+  const logger = makeRecordingLogger();
+  try {
+    const store = new JsonFileStore(join(dataDir, SESSION_FILE), logger);
+    assert.equal(store.load(), null);
+    store.save({ authToken: 't' });
+    assert.deepEqual(store.load(), { authToken: 't' });
+    assert.deepEqual(readdirSync(dataDir), [SESSION_FILE]);
+    store.clear();
+    assert.equal(store.load(), null);
+
+    writeFileSync(join(dataDir, PUSH_FILE), '{"creds":');
+    const broken = new JsonFileStore(join(dataDir, PUSH_FILE), logger);
+    assert.equal(broken.load(), null, 'a truncated file reads as nothing');
+
+    const unwritable = new JsonFileStore(join(dataDir, 'missing', PUSH_FILE), logger);
+    assert.doesNotThrow(() => unwritable.save({ persistentIds: [] }));
+    assert.match(logger.lines.warn[0], /Failed to save eufy-push\.json/);
+  } finally {
+    await rm(dataDir, { recursive: true, force: true });
   }
 });
 

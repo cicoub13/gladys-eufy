@@ -47,6 +47,10 @@ are in `CHANGELOG.md`.
   retried by eufy-sdk; only `disconnect()` opens a new epoch. `session.watchRealtime` checks
   `waitForRealtime()` after each login and restarts with `disconnect()` + `login()`; every
   scheduled re-login disconnects first for the same reason.
+- The SDK file stores write in place and throw on failure (its push store saves from a socket
+  handler: a throw crashes the process): `eufy.JsonFileStore` writes through a renamed temporary
+  file and logs a failed write. The push `persistentIds` list is never trimmed by eufy-sdk; do not
+  trim it here, FCM would redeliver the dropped ids (old doorbell events).
 - `noBroadcast: true`: the container is on a bridge network, the P2P LAN broadcast cannot work.
 
 ## Gladys contract points

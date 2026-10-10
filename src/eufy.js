@@ -8,9 +8,9 @@
 // -----------------------------------------------------------------------------
 
 import { randomBytes, scryptSync } from 'node:crypto';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { EufyMega, FileFcmStore, FileSessionStore } from '@mega-yfue/eufy-sdk';
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { basename, join } from 'node:path';
+import { EufyMega } from '@mega-yfue/eufy-sdk';
 
 /** Overridable for local runs outside the container. */
 export const DATA_DIR = process.env.EUFY_DATA_DIR || '/data';
@@ -18,6 +18,49 @@ export const DATA_DIR = process.env.EUFY_DATA_DIR || '/data';
 export const SESSION_FILE = 'eufy-session.json';
 export const PUSH_FILE = 'eufy-push.json';
 export const ACCOUNT_FILE = 'eufy-account.json';
+
+/**
+ * JSON file store for eufy-sdk (the `store` and `pushStore` options), in place
+ * of its own `FileSessionStore` / `FileFcmStore`:
+ *   - a write goes to a temporary file renamed over the previous one: a kill
+ *     in the middle of a write would leave a truncated session, so a new
+ *     login and a new 2FA code;
+ *   - a failed write is logged, not thrown: eufy-sdk saves the push
+ *     registration from a socket handler, where a throw (/data full) would
+ *     crash the process at every notification.
+ */
+export class JsonFileStore {
+  constructor(path, logger) {
+    this.path = path;
+    this.logger = logger;
+  }
+
+  load() {
+    try {
+      return JSON.parse(readFileSync(this.path, 'utf8'));
+    } catch {
+      return null;
+    }
+  }
+
+  save(value) {
+    const temporary = `${this.path}.tmp`;
+    try {
+      writeFileSync(temporary, JSON.stringify(value), { mode: 0o600 });
+      renameSync(temporary, this.path);
+    } catch (err) {
+      this.logger.warn(`Failed to save ${basename(this.path)}:`, err?.message ?? err);
+    }
+  }
+
+  clear() {
+    try {
+      rmSync(this.path, { force: true });
+    } catch (err) {
+      this.logger.warn(`Failed to delete ${basename(this.path)}:`, err?.message ?? err);
+    }
+  }
+}
 
 /** Salted hash of the account: the marker must not reveal the password. */
 function accountHash(config, salt) {
@@ -90,8 +133,8 @@ export function createEufyClient(config, logger, dataDir = DATA_DIR) {
     email: config.email,
     password: config.password,
     countryCode: config.country,
-    store: new FileSessionStore(join(dataDir, SESSION_FILE)),
-    pushStore: new FileFcmStore(join(dataDir, PUSH_FILE)),
+    store: new JsonFileStore(join(dataDir, SESSION_FILE), logger),
+    pushStore: new JsonFileStore(join(dataDir, PUSH_FILE), logger),
     logger: toEufyLogger(logger),
     // The container sits on a Docker bridge network: a 255.255.255.255
     // broadcast never reaches the LAN, so it would only be noise.
