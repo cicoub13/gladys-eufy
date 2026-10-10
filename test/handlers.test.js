@@ -85,6 +85,26 @@ test('a device the mapping chokes on does not hide the others', async () => {
   assert.equal(gladys.lastStatus().connected, true);
 });
 
+test('Gladys refusing the devices is no eufy failure: they are published again later', async () => {
+  const { gladys, handlers, clients, scheduleTimer } = setup();
+  const publish = gladys.publishDiscoveredDevices;
+  gladys.publishDiscoveredDevices = async () => {
+    throw Object.assign(new Error('Too many requests'), {
+      name: 'GladysApiError',
+      status: 429,
+    });
+  };
+  await handlers.gladysConnected();
+  assert.equal(gladys.lastStatus().connected, true, 'not "the eufy account is blocked"');
+  assert.equal(clients[0].calls.login, 1);
+  assert.equal(scheduleTimer.active()[0].delayMs, 60_000);
+
+  gladys.publishDiscoveredDevices = publish;
+  await scheduleTimer.runAll();
+  assert.equal(gladys.calls.discovered.length, 1);
+  assert.equal(clients[0].calls.login, 1);
+});
+
 test('an incomplete configuration asks for the account', async () => {
   const { gladys, handlers, clients } = setup({ config: { email: 'me@example.com' } });
   await handlers.gladysConnected();

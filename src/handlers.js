@@ -15,6 +15,7 @@ import { createSession, PHASE } from './session.js';
 import { connected as connectedMessage, MISSING_CONFIG } from './status.js';
 
 const REFRESH_DEBOUNCE_MS = 2_000;
+const PUBLISH_RETRY_MS = 60_000;
 
 const defaultScheduleTimer = (fn, delayMs) => {
   const timer = setTimeout(fn, delayMs);
@@ -142,7 +143,18 @@ export function createHandlers({
     replaceEntries(held, nextHeld);
     replaceEntries(registry, nextRegistry);
     heldClient = client;
-    await gladys.publishDiscoveredDevices(devices);
+    try {
+      await gladys.publishDiscoveredDevices(devices);
+    } catch (err) {
+      // eufy answered: Gladys refusing or missing the devices is no eufy
+      // failure (it would fail the login), so publish them again later.
+      logger.warn(
+        `Failed to publish the eufy devices to Gladys, retrying in ${PUBLISH_RETRY_MS / 1000} s:`,
+        err?.message ?? err,
+      );
+      scheduleRefresh(PUBLISH_RETRY_MS);
+      return devices.length;
+    }
     for (const dev of registry.values()) {
       try {
         await events.publishDeviceStates(dev);
@@ -155,7 +167,7 @@ export function createHandlers({
 
   // Capability and device list changes come in bursts at startup: one refresh
   // for the whole burst.
-  function scheduleRefresh() {
+  function scheduleRefresh(delayMs = REFRESH_DEBOUNCE_MS) {
     cancelRefresh?.();
     cancelRefresh = scheduleTimer(async () => {
       cancelRefresh = null;
@@ -167,7 +179,7 @@ export function createHandlers({
       } catch (err) {
         logger.warn('Failed to refresh the eufy devices:', err?.message ?? err);
       }
-    }, REFRESH_DEBOUNCE_MS);
+    }, delayMs);
   }
 
   const session = createSession({
