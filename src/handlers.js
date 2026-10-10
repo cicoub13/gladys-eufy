@@ -23,6 +23,23 @@ const defaultScheduleTimer = (fn, delayMs) => {
 
 const defaultSleep = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs));
 
+/** Runs the tasks handed to it one after the other, in call order. */
+function createQueue() {
+  let tail = Promise.resolve();
+  return (task) => {
+    const result = tail.then(task);
+    tail = result.catch(() => {});
+    return result;
+  };
+}
+
+function replaceEntries(map, entries) {
+  map.clear();
+  for (const [key, value] of entries) {
+    map.set(key, value);
+  }
+}
+
 /**
  * @param {object} deps
  * @param {object} deps.gladys GladysIntegration
@@ -45,6 +62,13 @@ export function createHandlers({
   // for a serial: this map keeps them alive, or the announcements would stop.
   // Never call `getDevice()` for a serial already held.
   const held = new Map();
+  // The eufy client the held devices come from: another client starts afresh.
+  let heldClient = null;
+  // Device reads (refreshes, dump) run one at a time: two at once would race
+  // on the maps above. So do configuration changes: two at once would build
+  // two eufy clients for one account.
+  const queueDevices = createQueue();
+  const queueConfig = createQueue();
   let account = null;
   let cancelRefresh = null;
   // The answers already handed to a login: if Gladys does not empty the form
@@ -69,29 +93,48 @@ export function createHandlers({
     }
   }
 
-  /** Fetch the eufy devices, publish the supported ones; resolves with their count. */
-  async function refreshDevices(client = session.client) {
+  /**
+   * Fetch the eufy devices, publish the supported ones; resolves with their
+   * count. The maps are swapped once complete: events and commands keep
+   * finding the devices while it runs.
+   */
+  function refreshDevices(client = session.client) {
+    return queueDevices(() => readDevices(client));
+  }
+
+  async function readDevices(client) {
     const records = await client.getDevices();
+    const reusable = heldClient === client ? held : new Map();
+    const nextHeld = new Map();
+    const nextRegistry = new Map();
     const devices = [];
-    registry.clear();
-    held.clear();
     for (const record of records) {
-      let dev;
-      try {
-        dev = await client.getDevice(record.sn);
-      } catch (err) {
-        logger.warn(`Failed to read the eufy device ${record.sn}:`, err?.message ?? err);
-        continue;
+      // eufy-sdk updates a held device in place, new capabilities included.
+      let dev = reusable.get(record.sn);
+      if (!dev) {
+        try {
+          dev = await client.getDevice(record.sn);
+        } catch (err) {
+          logger.warn(`Failed to read the eufy device ${record.sn}:`, err?.message ?? err);
+          continue;
+        }
       }
-      held.set(dev.sn, dev);
+      nextHeld.set(dev.sn, dev);
       const device = buildDevice(gladys, dev);
       if (device) {
-        registry.set(dev.sn, dev);
+        nextRegistry.set(dev.sn, dev);
         devices.push(device);
       } else {
         logger.debug(`eufy device ${record.sn} (${record.model}) has no supported capability`);
       }
     }
+    if (client !== session.client) {
+      // The session moved to another client meanwhile.
+      return devices.length;
+    }
+    replaceEntries(held, nextHeld);
+    replaceEntries(registry, nextRegistry);
+    heldClient = client;
     await gladys.publishDiscoveredDevices(devices);
     for (const dev of registry.values()) {
       await events.publishDeviceStates(dev);
@@ -139,7 +182,11 @@ export function createHandlers({
    * handed to the pending login. Never throws: Gladys does not acknowledge a
    * configuration update, an error would vanish.
    */
-  async function applyConfig(raw, { reconnect = false } = {}) {
+  function applyConfig(raw, options) {
+    return queueConfig(() => applyConfigNow(raw, options));
+  }
+
+  async function applyConfigNow(raw, { reconnect = false } = {}) {
     const config = normalizeConfig(raw);
 
     if (!isComplete(config)) {
@@ -228,36 +275,40 @@ export function createHandlers({
           fr: 'Non connecté à eufy : voir le statut de connexion ci-dessus.',
         };
       }
-      const records = await client.getDevices();
-      for (const record of records) {
-        try {
-          let dev = held.get(record.sn);
-          if (!dev) {
-            dev = await client.getDevice(record.sn);
-            held.set(dev.sn, dev);
-          }
-          logger.info(
-            `eufy device ${JSON.stringify({
-              sn: dev.sn,
-              name: dev.name,
-              model: dev.model,
-              modelName: dev.modelName,
-              codec: dev.codec,
-              stationSn: dev.stationSn,
-              capabilities: dev.capabilities,
-              supported: registry.has(dev.sn),
-            })}`,
-          );
-        } catch (err) {
-          logger.warn(`Failed to read the eufy device ${record.sn}:`, err?.message ?? err);
-        }
-      }
-      return {
-        en: `${records.length} device(s) written to the Logs of the integration.`,
-        fr: `${records.length} appareil(s) écrit(s) dans les Logs de l’intégration.`,
-      };
+      return queueDevices(() => dumpDevices(client));
     },
   };
+
+  async function dumpDevices(client) {
+    const records = await client.getDevices();
+    for (const record of records) {
+      try {
+        let dev = held.get(record.sn);
+        if (!dev) {
+          dev = await client.getDevice(record.sn);
+          held.set(dev.sn, dev);
+        }
+        logger.info(
+          `eufy device ${JSON.stringify({
+            sn: dev.sn,
+            name: dev.name,
+            model: dev.model,
+            modelName: dev.modelName,
+            codec: dev.codec,
+            stationSn: dev.stationSn,
+            capabilities: dev.capabilities,
+            supported: registry.has(dev.sn),
+          })}`,
+        );
+      } catch (err) {
+        logger.warn(`Failed to read the eufy device ${record.sn}:`, err?.message ?? err);
+      }
+    }
+    return {
+      en: `${records.length} device(s) written to the Logs of the integration.`,
+      fr: `${records.length} appareil(s) écrit(s) dans les Logs de l’intégration.`,
+    };
+  }
 
   return {
     actions,

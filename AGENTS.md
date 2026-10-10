@@ -14,7 +14,11 @@ are in `CHANGELOG.md`.
 - `registry` (sn → supported `Device`) and `held` (sn → every `Device` fetched) MUST keep the
   `Device` objects: eufy-sdk holds them weakly, a dropped one stops announcing `propertyChanged`.
 - `getDevice(sn)` replaces, in eufy-sdk, the object announcements go to: never call it for a
-  serial already in `held` (e.g. `dump_devices` reuses `held`).
+  serial already in `held` (`refreshDevices` and `dump_devices` reuse `held`; eufy-sdk widens a
+  held device in place when it gains capabilities). `refreshDevices` builds new maps and swaps
+  them at the end, so events and commands never see an empty registry.
+- Device reads (`queueDevices`) and configuration changes (`queueConfig`) each run one at a
+  time: two `applyConfig` at once built two eufy clients.
 - Push, not poll: `should_poll: false`, no `onPoll`. State events re-read the device through the
   capability getters (`mapping.readStates`) and `events.publish` only sends changed values.
 - States published before the user creates the device are dropped by Gladys:

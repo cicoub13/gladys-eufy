@@ -234,7 +234,13 @@ export function createSession({
      * @param {import('./config.js').EufyConfig} config
      */
     async start(config) {
-      await stop();
+      const stopping = stop();
+      const startGeneration = generation;
+      await stopping;
+      if (startGeneration !== generation) {
+        // Stopped, or started again, while the previous client closed.
+        return;
+      }
       backoffMs = BACKOFF_START_MS;
       realtimeBackoffMs = BACKOFF_START_MS;
       phase = PHASE.CONNECTING;

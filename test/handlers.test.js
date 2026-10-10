@@ -247,6 +247,60 @@ test('dump_devices fetches, then holds, a device the refresh could not read', as
   assert.deepEqual(fetched, ['V1'], 'fetched once, then held');
 });
 
+const flush = () => new Promise((resolve) => setImmediate(resolve));
+
+test('a refresh keeps the devices reachable, and never fetches a held device again', async () => {
+  const { gladys, handlers, clients, scheduleTimer } = setup();
+  await handlers.gladysConnected();
+  const client = clients[0];
+  const getDevices = client.getDevices;
+  let release;
+  client.getDevices = async () => {
+    client.getDevices = getDevices;
+    await new Promise((resolve) => (release = resolve));
+    return getDevices();
+  };
+  const scan = handlers.scan();
+  const test = handlers.actions.test_connection();
+  const dump = handlers.actions.dump_devices();
+  await flush();
+  await client.fire('doorbellPress', { deviceSn: 'D1' });
+  assert.equal(gladys.calls.sceneEvents.length, 1, 'the doorbell is still known');
+  release();
+  await Promise.all([scan, test, dump]);
+  await client.fire('deviceCapabilities', {});
+  await scheduleTimer.runAll();
+
+  assert.deepEqual(client.calls.getDevice, ['D1', 'L1', 'V1']);
+  await handlers.setValue(
+    { external_id: 'ext:eufy-test:eufy:L1' },
+    { external_id: 'ext:eufy-test:eufy:L1:lock' },
+    1,
+  );
+  assert.equal(client.devices[1].calls.lock, 1);
+});
+
+test('configuration changes run one at a time: one client per account', async () => {
+  const { gladys, handlers, clients } = setup();
+  await handlers.gladysConnected();
+  let release;
+  clients[0].disconnect = async () => {
+    clients[0].calls.disconnect += 1;
+    await new Promise((resolve) => (release = resolve));
+  };
+  const config = { ...ACCOUNT, password: 'new' };
+  gladys.config = config;
+  const saved = handlers.configUpdated(config);
+  // Gladys reconnects while the previous client is still closing.
+  const reconnected = handlers.gladysConnected();
+  await flush();
+  release();
+  await Promise.all([saved, reconnected]);
+  assert.equal(clients.length, 2);
+  assert.equal(clients[0].calls.disconnect, 1);
+  assert.equal(clients[1].calls.login, 1);
+});
+
 test('shutdown closes the eufy session', async () => {
   const { handlers, clients } = setup();
   await handlers.gladysConnected();

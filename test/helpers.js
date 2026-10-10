@@ -223,8 +223,17 @@ export function makeFakeClient({ devices = [], loginResults = [{ status: 'ok' }]
     }
     return result;
   };
-  client.calls = { login: 0, submitVerifyCode: [], solveCaptcha: [], disconnect: 0 };
+  client.calls = {
+    login: 0,
+    submitVerifyCode: [],
+    solveCaptcha: [],
+    disconnect: 0,
+    getDevice: [],
+  };
   client.devices = devices;
+  // Like eufy-sdk, `getDevice` builds a new object each time and announces
+  // against the last one built for a serial.
+  client.live = new Map();
   client.login = async () => {
     client.calls.login += 1;
     return next();
@@ -241,10 +250,14 @@ export function makeFakeClient({ devices = [], loginResults = [{ status: 'ok' }]
     client.devices.map((dev) => ({ sn: dev.sn, name: dev.name, model: dev.model }));
   client.getDevice = async (sn) => {
     const dev = client.devices.find((candidate) => candidate.sn === sn);
+    client.calls.getDevice.push(sn);
     if (!dev) {
       throw new Error(`unknown device ${sn}`);
     }
-    return dev;
+    // Reads fall through to the fake device, so the tests can change it.
+    const built = Object.create(dev);
+    client.live.set(sn, built);
+    return built;
   };
   client.disconnect = async () => {
     client.calls.disconnect += 1;
