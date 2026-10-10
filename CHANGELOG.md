@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-10
+
 ### Fixed
 
 - Contact sensors showed a closed door as open, and an open one as closed.
