@@ -107,8 +107,9 @@ test('readStates skips the values never reported', () => {
     capabilities: ['contact', 'battery'],
     values: { open: false, batteryLevel: 140 },
   });
+  // A closed contact is 1 in Gladys.
   assert.deepEqual(readStates(dev), [
-    { key: 'opening', value: 0 },
+    { key: 'opening', value: 1 },
     { key: 'battery', value: 100 },
   ]);
 });

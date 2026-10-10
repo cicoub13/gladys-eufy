@@ -153,7 +153,8 @@ test('a contact change publishes the new value only once', async () => {
   sensor.values.open = true;
   await client.fire('contactState', { deviceSn: 'S1', open: true });
   await client.fire('propertyChanged', { deviceSn: 'S1', property: 'contact', value: true });
-  assert.deepEqual(gladys.statesOf(`${SENSOR}:opening`), [1]);
+  // Gladys: 0 = open.
+  assert.deepEqual(gladys.statesOf(`${SENSOR}:opening`), [0]);
 });
 
 test('commandUnconfirmed republishes what the device actually reports', async () => {

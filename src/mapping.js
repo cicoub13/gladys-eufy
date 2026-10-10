@@ -120,7 +120,11 @@ export const FEATURES = [
     name: 'Opening',
     when: has('contact'),
     feature: sensor(CATEGORIES.OPENING_SENSOR),
-    read: (dev) => bool(dev.contact?.()?.open),
+    // Gladys reads an opening sensor as a contact: 1 = closed, 0 = open.
+    read: (dev) => {
+      const open = bool(dev.contact?.()?.open);
+      return open === undefined ? undefined : 1 - open;
+    },
   },
   {
     key: 'lock',

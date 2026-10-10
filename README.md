@@ -15,7 +15,7 @@ Devices are mapped by the capabilities eufy-sdk reports, not by model:
 | `camera` / `snapshot`            | `camera` / `image` — push thumbnail after each event         |
 | `doorbell`                       | `doorbell` / `ring` — 1 on a press, back to 0 after 5 s      |
 | `motion` / `person_detection`    | `motion-sensor` / `binary` — 1 on a detection, 0 after 30 s  |
-| `contact`                        | `opening-sensor` / `binary`                                  |
+| `contact`                        | `opening-sensor` / `binary` — 1 = closed, 0 = open           |
 | `lock`                           | `lock` / `binary` — **controllable**, 1 = locked (¹)         |
 | `leak` / `smoke` / `co`          | `leak-sensor` / `smoke-sensor` / `co-sensor` — `binary`      |
 | `siren`                          | `siren` / `binary` (read-only)                               |
