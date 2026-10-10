@@ -51,7 +51,9 @@ export function normalizeConfig(raw = {}) {
     email: text(raw.email),
     // Never trimmed: a password may legitimately start or end with a space.
     password: typeof raw.password === 'string' ? raw.password : '',
-    country: /^[A-Z]{2}$/.test(country) ? country : DEFAULT_COUNTRY,
+    // Kept when invalid, so that the status names it: a silent fallback would
+    // route the login to the wrong eufy region.
+    country: country === '' ? DEFAULT_COUNTRY : country,
     allowUnlock: flag(raw.allow_unlock),
     allowDisarm: flag(raw.allow_disarm),
     verificationCode: text(raw.verification_code),
@@ -62,6 +64,11 @@ export function normalizeConfig(raw = {}) {
 /** Whether the account is filled in enough to try a login. */
 export function isComplete(config) {
   return config.email !== '' && config.password !== '';
+}
+
+/** Whether the country is a two-letter code. */
+export function isValidCountry(config) {
+  return /^[A-Z]{2}$/.test(config.country);
 }
 
 /** Whether two configurations designate the same account (answers ignored). */

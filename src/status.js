@@ -11,6 +11,16 @@ export const MISSING_CONFIG = {
   fr: 'Veuillez renseigner l’email et le mot de passe de votre compte eufy, puis enregistrer.',
 };
 
+/**
+ * @param {string} country The value typed in the form.
+ */
+export function invalidCountry(country) {
+  return {
+    en: `The country "${country}" is not a 2-letter code: type the one of the eufy account (FR, DE, GB, US...), then save.`,
+    fr: `Le pays « ${country} » n’est pas un code à 2 lettres : saisissez celui du compte eufy (FR, DE, GB, US…), puis enregistrez.`,
+  };
+}
+
 export const CONNECTING = {
   en: 'Connecting to eufy...',
   fr: 'Connexion à eufy...',

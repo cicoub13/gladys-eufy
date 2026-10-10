@@ -6,14 +6,14 @@
 // injected so the tests drive everything with fakes, without a network.
 // -----------------------------------------------------------------------------
 
-import { ANSWER_KEYS, isComplete, normalizeConfig, sameAccount } from './config.js';
+import { ANSWER_KEYS, isComplete, isValidCountry, normalizeConfig, sameAccount } from './config.js';
 import { createCommands } from './commands.js';
 import { createEventBridge, SNAPSHOT_ATTEMPTS, SNAPSHOT_RETRY_DELAY_MS } from './events.js';
 import { buildDevice } from './mapping.js';
 import { toGladysImage } from './image.js';
 import { createQueue } from './queue.js';
 import { createSession, PHASE } from './session.js';
-import { connected as connectedMessage, MISSING_CONFIG } from './status.js';
+import { connected as connectedMessage, invalidCountry, MISSING_CONFIG } from './status.js';
 
 const REFRESH_DEBOUNCE_MS = 2_000;
 const PUBLISH_RETRY_MS = 60_000;
@@ -213,13 +213,13 @@ export function createHandlers({
     const config = normalizeConfig(raw);
     permissions = { allowUnlock: config.allowUnlock, allowDisarm: config.allowDisarm };
 
-    if (!isComplete(config)) {
+    if (!isComplete(config) || !isValidCountry(config)) {
       account = config;
       await events.stop();
       registry.clear();
       held.clear();
       await session.stop();
-      await setStatus(false, MISSING_CONFIG);
+      await setStatus(false, isComplete(config) ? invalidCountry(config.country) : MISSING_CONFIG);
       return;
     }
 

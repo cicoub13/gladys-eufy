@@ -113,6 +113,14 @@ test('an incomplete configuration asks for the account', async () => {
   assert.match(gladys.lastStatus().message.fr, /mot de passe/);
 });
 
+test('an invalid country is named in the status, without any login', async () => {
+  const { gladys, handlers, clients } = setup({ config: { ...ACCOUNT, country: 'Germany' } });
+  await handlers.gladysConnected();
+  assert.equal(clients.length, 0);
+  assert.equal(gladys.lastStatus().connected, false);
+  assert.match(gladys.lastStatus().message.fr, /« GERMANY » n’est pas un code à 2 lettres/);
+});
+
 test('the verification code typed in the form completes the login', async () => {
   const { gladys, handlers, clients } = setup({
     loginResults: [{ status: '2fa', method: 'email' }, { status: 'ok' }],
