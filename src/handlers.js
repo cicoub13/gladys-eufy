@@ -200,6 +200,15 @@ export function createHandlers({
     }
   }
 
+  /** Start a new login; an answer left in the form belongs to an older one. */
+  async function restartLogin(config) {
+    if (config.verificationCode || config.captchaAnswer) {
+      usedAnswers.add(config.verificationCode).add(config.captchaAnswer);
+      await clearAnswers();
+    }
+    await session.start(config);
+  }
+
   /**
    * Apply a configuration: a new account starts a new login, an answer is
    * handed to the pending login. Never throws: Gladys does not acknowledge a
@@ -226,12 +235,7 @@ export function createHandlers({
     if (!sameAccount(account, config) || session.phase === PHASE.IDLE) {
       account = config;
       events.forgetAll();
-      // An answer left in the form belongs to an older login.
-      if (config.verificationCode || config.captchaAnswer) {
-        usedAnswers.add(config.verificationCode).add(config.captchaAnswer);
-        await clearAnswers();
-      }
-      await session.start(config);
+      await restartLogin(config);
       return;
     }
 
@@ -254,7 +258,18 @@ export function createHandlers({
     // Saving the form again after a refused password, a blocked account...
     // is the way to ask for a new attempt.
     if (session.phase === PHASE.FAILED) {
-      await session.start(config);
+      await restartLogin(config);
+      return;
+    }
+
+    // Saved again without a new answer while one is awaited: the code never
+    // arrived, or the captcha cannot be read. A new login asks for a new one.
+    // Not on a Gladys reconnection: that would send a code each time.
+    if (
+      !reconnect &&
+      (session.phase === PHASE.VERIFICATION_CODE || session.phase === PHASE.CAPTCHA)
+    ) {
+      await restartLogin(config);
       return;
     }
 

@@ -147,19 +147,32 @@ test('the captcha answer typed in the form is handed to the login', async () => 
   assert.deepEqual(clients[0].calls.solveCaptcha, ['ab12']);
 });
 
-test('emptying the fields, or saving a used code again, does nothing', async () => {
+test('saving the form without a new code asks eufy for a new one', async () => {
   const { gladys, handlers, clients } = setup({
     loginResults: [{ status: '2fa' }, { status: '2fa' }],
   });
   await handlers.gladysConnected();
   await handlers.configUpdated({ ...ACCOUNT, verification_code: '111111' });
-  // The echo of the integration's own setConfig.
-  await handlers.configUpdated({ ...ACCOUNT, verification_code: '' });
-  // A form still showing the used code, saved again.
+  // A form still showing the used code, saved again: the code is never
+  // replayed, a new login sends a new one.
   await handlers.configUpdated({ ...ACCOUNT, verification_code: '111111' });
   assert.deepEqual(clients[0].calls.submitVerifyCode, ['111111']);
-  assert.equal(clients.length, 1);
-  assert.equal(gladys.calls.setConfig.length, 1);
+  assert.equal(clients.length, 2);
+  assert.deepEqual(clients[1].calls.submitVerifyCode, []);
+  assert.deepEqual(gladys.calls.setConfig.at(-1), { verification_code: '', captcha_answer: '' });
+
+  // A Gladys reconnection while a code is awaited asks for nothing.
+  await handlers.gladysConnected();
+  assert.equal(clients.length, 2);
+});
+
+test('saving the form without an answer while a captcha is awaited asks for a new one', async () => {
+  const { handlers, clients } = setup({
+    loginResults: [{ status: 'captcha', image: 'data:image/png;base64,AA==', retry: false }],
+  });
+  await handlers.gladysConnected();
+  await handlers.configUpdated(ACCOUNT);
+  assert.equal(clients.length, 2);
 });
 
 test('a code typed while no login waits for one is ignored', async () => {

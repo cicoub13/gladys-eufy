@@ -26,6 +26,7 @@ Bring your eufy Security devices into Gladys: cameras, video doorbells, smart lo
    - **Connected**: go to step 4.
    - **Verification code**: eufy emailed you a code. Type it in the **Verification code** field, then save.
    - **Captcha**: open the **Logs** of the integration and copy the line starting with `data:image/png;base64,` into the address bar of your browser to see the image. Type its 4 characters in the **Captcha answer** field, then save. eufy may then ask for a verification code.
+   - **No code received, or a captcha you cannot read**: save the form again with the field empty, eufy sends a new one.
 4. The integration empties the code and captcha fields once used. The session is kept: a restart asks for nothing.
 5. Open the **Discovery** tab and create the devices you want.
 

@@ -26,6 +26,7 @@ Intégrez vos appareils eufy Security dans Gladys : caméras, sonnettes vidéo, 
    - **Connecté** : passez à l'étape 4.
    - **Code de vérification** : eufy vous a envoyé un code par email. Saisissez-le dans le champ **Code de vérification**, puis enregistrez.
    - **Captcha** : ouvrez les **Logs** de l'intégration et copiez la ligne qui commence par `data:image/png;base64,` dans la barre d'adresse de votre navigateur pour afficher l'image. Saisissez ensuite les 4 caractères dans le champ **Réponse captcha**, puis enregistrez. eufy peut demander ensuite un code de vérification.
+   - **Code non reçu, ou captcha illisible** : enregistrez de nouveau le formulaire avec le champ vide, eufy en envoie un nouveau.
 4. L'intégration vide elle-même les champs code et captcha une fois utilisés. La session est conservée : un redémarrage ne redemande rien.
 5. Ouvrez l'onglet **Découverte** et créez les appareils souhaités.
 
