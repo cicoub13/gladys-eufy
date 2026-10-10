@@ -16,7 +16,7 @@ Intégrez vos appareils eufy Security dans Gladys : caméras, sonnettes vidéo, 
 ## Prérequis
 
 - **Gladys 5.1 ou supérieur.**
-- Un **compte eufy dédié** à Gladys. eufy ne garde qu'une session par compte : utiliser votre compte principal vous déconnecterait de l'application. Créez un second compte, puis partagez-lui vos appareils depuis l'application eufy Security (Paramètres > Famille et invités). Donnez-lui les droits administrateur pour piloter les serrures et le mode d'armement.
+- Un **compte eufy dédié** à Gladys. eufy ne garde qu'une session par compte : utiliser votre compte principal vous déconnecterait de l'application. Créez un second compte, puis partagez-lui vos appareils depuis l'application eufy Security de votre compte principal (Paramètres > Famille et invités). Donnez-lui les droits administrateur pour piloter les serrures et le mode d'armement. Connectez-vous ensuite une fois avec le compte dédié dans l'application eufy Security pour **accepter l'invitation**, puis déconnectez-vous : vous connecter plus tard avec ce compte dans l'application déconnecterait Gladys.
 
 ## Configuration
 

@@ -2,7 +2,7 @@
 
 eufy Security external integration for [Gladys Assistant](https://gladysassistant.com): cameras, video doorbells, smart locks, sensors and HomeBase guard mode in Gladys.
 
-Built on the [Gladys external integration platform](https://gladysassistant.com/docs/dev/external-integrations/) and the [`@mega-yfue/eufy-sdk`](https://github.com/mega-yfue/eufy-sdk) library (the successor of `eufy-security-client`). Requires **Gladys 5.1 or later** (scene triggers).
+Built on the [Gladys external integration platform](https://gladysassistant.com/docs/dev/external-integrations/) and the [`@mega-yfue/eufy-sdk`](https://github.com/mega-yfue/eufy-sdk) library (the successor of `eufy-security-client`). Requires **Gladys 5.1 or later** (scene triggers) and a **dedicated eufy account** the devices are shared with, invitation accepted (eufy keeps one session per account: see the user documentation).
 
 User documentation: [docs/en.md](docs/en.md) · [docs/fr.md](docs/fr.md).
 

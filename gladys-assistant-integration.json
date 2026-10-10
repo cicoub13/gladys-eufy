@@ -20,8 +20,8 @@
         "fr": "Compte eufy"
       },
       "description": {
-        "en": "Use a dedicated eufy account: create one, then share your devices with it from the eufy Security app (Settings > Family & Guests, with admin rights to control locks and guard mode). eufy keeps a single session per account, so signing in with your main account would sign you out of the app. The country must be the one of the eufy account.",
-        "fr": "Utilisez un compte eufy dédié : créez-en un, puis partagez-lui vos appareils depuis l'application eufy Security (Paramètres > Famille et invités, avec les droits administrateur pour piloter serrures et mode d'armement). eufy ne garde qu'une session par compte : se connecter avec votre compte principal vous déconnecterait de l'application. Le pays doit être celui du compte eufy."
+        "en": "Use a dedicated eufy account: create one, then share your devices with it from the eufy Security app (Settings > Family & Guests, with admin rights to control locks and guard mode), and sign in once with the new account in the app to accept the invitation. eufy keeps a single session per account, so signing in with your main account would sign you out of the app. The country must be the one of the eufy account.",
+        "fr": "Utilisez un compte eufy dédié : créez-en un, puis partagez-lui vos appareils depuis l'application eufy Security (Paramètres > Famille et invités, avec les droits administrateur pour piloter serrures et mode d'armement), et connectez-vous une fois avec le nouveau compte dans l'application pour accepter l'invitation. eufy ne garde qu'une session par compte : se connecter avec votre compte principal vous déconnecterait de l'application. Le pays doit être celui du compte eufy."
       },
       "links": [
         {

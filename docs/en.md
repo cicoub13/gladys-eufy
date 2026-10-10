@@ -16,7 +16,7 @@ Bring your eufy Security devices into Gladys: cameras, video doorbells, smart lo
 ## Requirements
 
 - **Gladys 5.1 or later.**
-- A **dedicated eufy account** for Gladys. eufy keeps a single session per account: signing in with your main account would sign you out of the app. Create a second account and share your devices with it from the eufy Security app (Settings > Family & Guests), with admin rights to control locks and the guard mode.
+- A **dedicated eufy account** for Gladys. eufy keeps a single session per account: signing in with your main account would sign you out of the app. Create a second account and share your devices with it from the eufy Security app of your main account (Settings > Family & Guests), with admin rights to control locks and the guard mode. Then sign in once with the dedicated account in the eufy Security app to **accept the invitation**, and sign out: signing in with it in the app later would sign Gladys out.
 
 ## Configuration
 

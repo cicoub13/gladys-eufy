@@ -66,6 +66,14 @@ test('the free-text method of eufy-sdk is not pasted into the status', async () 
   );
 });
 
+test('an account without any supported device says how to share them', async () => {
+  const { statuses, session } = setup([{ status: 'ok' }], { deviceCount: 0 });
+  await session.start(CONFIG);
+  assert.equal(statuses.at(-1).connected, true);
+  assert.match(statuses.at(-1).message.fr, /accepter l’invitation/);
+  assert.match(statuses.at(-1).message.en, /List the raw devices/);
+});
+
 test('a captcha is written to the logs, then answered', async () => {
   const { client, session, statuses, logger } = setup([
     { status: 'captcha', image: CAPTCHA_IMAGE, retry: false },

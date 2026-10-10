@@ -20,6 +20,12 @@ export const CONNECTING = {
  * @param {number} deviceCount
  */
 export function connected(deviceCount) {
+  if (deviceCount === 0) {
+    return {
+      en: 'Connected, but no supported eufy device was found on this account. Share your devices with it from the eufy Security app of your main account, then sign in once with this account in the app to accept the invitation. A shared device still missing: use “List the raw devices”.',
+      fr: 'Connecté, mais aucun appareil eufy pris en charge sur ce compte. Partagez-lui vos appareils depuis l’application eufy Security de votre compte principal, puis connectez-vous une fois avec ce compte dans l’application pour accepter l’invitation. Un appareil partagé manque toujours : utilisez « Lister les appareils bruts ».',
+    };
+  }
   return {
     en: `Connected — ${deviceCount} eufy device(s) found. Create them from the Discovery tab.`,
     fr: `Connecté — ${deviceCount} appareil(s) eufy trouvé(s). Créez-les depuis l’onglet Découverte.`,
