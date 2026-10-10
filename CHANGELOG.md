@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-10
+
 ### Added
 
 - **First version.** eufy Security cameras, doorbells, smart locks, sensors and
