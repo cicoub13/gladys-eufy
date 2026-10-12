@@ -27,9 +27,11 @@ gladys.onScanRequest(handlers.scan);
 gladys.onSetValue(handlers.setValue);
 gladys.onGetImage(handlers.getImage);
 gladys.onConfigUpdated(handlers.configUpdated);
-// States published before the user creates a device are silently dropped by the
-// host API, so a freshly created device needs them published again.
+// States published before the user creates a device, or before an update adds a
+// feature to it, are silently dropped by the host API: the device needs them
+// published again.
 gladys.onDeviceCreated(handlers.deviceCreated);
+gladys.onDeviceUpdated(handlers.deviceUpdated);
 gladys.on('connected', handlers.gladysConnected);
 gladys.handleShutdown(handlers.shutdown);
 

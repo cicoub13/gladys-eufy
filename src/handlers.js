@@ -290,6 +290,18 @@ export function createHandlers({
     return sn ? registry.get(sn) : undefined;
   }
 
+  // Gladys drops the states of a device, or of a feature, it does not have yet:
+  // the ones published before the user creates the device, or before an update
+  // adds a feature to it (battery charging...), were lost. Publish them all
+  // again.
+  async function republishDevice(device) {
+    const dev = findDevice(device);
+    if (dev) {
+      events.forget(dev.sn);
+      await events.publishDeviceStates(dev);
+    }
+  }
+
   const actions = {
     async test_connection() {
       const client = session.client;
@@ -409,15 +421,8 @@ export function createHandlers({
       }
     },
 
-    // States published before the user creates the device were dropped by
-    // Gladys: publish them all again.
-    async deviceCreated(device) {
-      const dev = findDevice(device);
-      if (dev) {
-        events.forget(dev.sn);
-        await events.publishDeviceStates(dev);
-      }
-    },
+    deviceCreated: republishDevice,
+    deviceUpdated: republishDevice,
 
     // Docker kills the container 10 s after SIGTERM: give up closing before
     // that, so that the SDK still disconnects from Gladys and exits cleanly.

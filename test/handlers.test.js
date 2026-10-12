@@ -231,6 +231,28 @@ test('a created device gets its states again', async () => {
   await handlers.deviceCreated({ external_id: 'other', params: [] });
 });
 
+test('an updated device gets its unchanged states again, for the features the update added', async () => {
+  const devices = makeDevices();
+  devices[0].values.charging = true;
+  const { gladys, handlers, clients } = setup({ devices });
+  await handlers.gladysConnected();
+  // Gladys dropped this one: the device did not have the feature yet.
+  assert.deepEqual(gladys.statesOf('ext:eufy-test:eufy:D1:charging'), [1]);
+
+  // Nothing changed: a state event publishes nothing.
+  await clients[0].fire('propertyChanged', { deviceSn: 'D1' });
+  assert.deepEqual(gladys.statesOf('ext:eufy-test:eufy:D1:charging'), [1]);
+
+  // The user updates the device from the discovery: the feature now exists.
+  await handlers.deviceUpdated({
+    external_id: 'ext:eufy-test:eufy:D1',
+    params: [{ name: 'serial_number', value: 'D1' }],
+  });
+  assert.deepEqual(gladys.statesOf('ext:eufy-test:eufy:D1:charging'), [1, 1]);
+  assert.deepEqual(gladys.statesOf('ext:eufy-test:eufy:D1:battery'), [55, 55]);
+  await handlers.deviceUpdated({ external_id: 'other', params: [] });
+});
+
 test('onGetImage answers the last thumbnail of the camera', async () => {
   const devices = makeDevices();
   devices[0].snapshots = [await makeJpeg()];
