@@ -26,8 +26,9 @@ are in `CHANGELOG.md`.
   none stays at 1.
 - States and images of a device the user did not create (not in `gladys.devices`) are skipped:
   Gladys drops the states (still counting them in its rate limit) and refuses the images.
-- States published before the user creates the device are dropped by Gladys:
-  `deviceCreated` → `events.forget(sn)` → republish.
+- States published before the user creates the device, or before an update adds a feature to
+  it, are dropped by Gladys: `deviceCreated` / `deviceUpdated` → `events.forget(sn)` →
+  republish.
 
 ## eufy-sdk quirks (handled in code, keep them)
 

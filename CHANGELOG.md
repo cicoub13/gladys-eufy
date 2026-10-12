@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- After updating a device from the discovery, a feature the update added (battery
+  charging...) shows its value right away instead of staying empty until the
+  value changes.
+
 ## [1.1.0] - 2026-10-10
 
 ### Fixed
