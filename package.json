@@ -17,7 +17,7 @@
     "node": ">=24.5.0"
   },
   "dependencies": {
-    "@gladysassistant/integration-sdk": "^0.14.0",
+    "@gladysassistant/integration-sdk": "^0.15.0",
     "@mega-yfue/eufy-sdk": "0.4.0",
     "jpeg-js": "^0.4.4"
   },
