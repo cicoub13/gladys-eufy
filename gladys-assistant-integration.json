@@ -6,8 +6,8 @@
     "en": "eufy Security cameras, doorbells, smart locks, sensors and HomeBase guard mode.",
     "fr": "Caméras, sonnettes, serrures, capteurs et mode d'armement HomeBase eufy Security."
   },
-  "version": "1.1.0",
-  "docker_image": "ghcr.io/cicoub13/gladys-eufy:1.1.0",
+  "version": "1.1.1",
+  "docker_image": "ghcr.io/cicoub13/gladys-eufy:1.1.1",
   "gladys_version": ">=5.1.0",
   "cover_image": "https://raw.githubusercontent.com/cicoub13/gladys-eufy/main/cover.png",
   "categories": ["security"],

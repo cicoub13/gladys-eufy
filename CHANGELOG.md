@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-13
+
 ### Fixed
 
 - After updating a device from the discovery, a feature the update added (battery
