@@ -1,10 +1,11 @@
 // -----------------------------------------------------------------------------
-// Hand-written fakes shared by the tests: a Gladys client, an eufy client, eufy
-// devices and timers. No mocking library: each fake records what it received.
+// Hand-written fakes shared by the tests: an eufy client, eufy devices and
+// timers. No mocking library: each fake records what it received. Gladys is the
+// SDK fake: `createFakeGladys` from `@gladysassistant/integration-sdk/testing`.
 // -----------------------------------------------------------------------------
 
-import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
+import { createFakeGladys } from '@gladysassistant/integration-sdk/testing';
 
 /**
  * The id helpers of `GladysIntegration`, METHOD-shaped like the real ones: a
@@ -43,80 +44,29 @@ export function makeRecordingLogger() {
 }
 
 /**
- * Fake GladysIntegration recording every call. `created` lists the serial
- * numbers of the eufy devices the user created (`gladys.devices`).
+ * The SDK fake Gladys, connected: `created` lists the serial numbers of the
+ * eufy devices the user created (`gladys.devices` once connected).
  */
-export function makeFakeGladys({ config = {}, created = [] } = {}) {
-  const calls = {
-    discovered: [],
-    states: [],
-    batches: [],
-    images: [],
-    sceneEvents: [],
-    connectionStatus: [],
-    setConfig: [],
-  };
-  return {
-    calls,
+export async function connectFakeGladys({ config, created = [] } = {}) {
+  const gladys = createFakeGladys({
+    selector: 'eufy-test',
     config,
     devices: created.map((sn) => ({
       external_id: externalIdHelpers.externalIds('eufy', sn).device,
     })),
-    /** Set to an Error to make the next publications reject. */
-    publishError: null,
-    ...externalIdHelpers,
-    async getConfig() {
-      return this.config;
-    },
-    async setConfig(partial) {
-      calls.setConfig.push(partial);
-      this.config = { ...this.config, ...partial };
-      return { success: true };
-    },
-    async publishDiscoveredDevices(devices) {
-      calls.discovered.push(devices);
-      return { success: true };
-    },
-    async publishStates(states) {
-      if (this.publishError) {
-        throw this.publishError;
-      }
-      assert.ok(states.length <= 100, 'at most 100 states per request');
-      calls.batches.push(states.length);
-      for (const state of states) {
-        calls.states.push({
-          featureExternalId: state.device_feature_external_id,
-          value: state.text === undefined ? state.state : { text: state.text },
-        });
-      }
-      return { success: true };
-    },
-    async publishCameraImage(deviceExternalId, image) {
-      if (this.publishError) {
-        throw this.publishError;
-      }
-      calls.images.push({ deviceExternalId, image });
-      return { success: true };
-    },
-    async publishSceneEvent(key, data) {
-      calls.sceneEvents.push({ key, data });
-      return { success: true };
-    },
-    async setConnectionStatus(connected, message) {
-      calls.connectionStatus.push({ connected, message });
-      return { success: true };
-    },
-    /** The last connection status published. */
-    lastStatus() {
-      return calls.connectionStatus.at(-1);
-    },
-    /** Values published for one feature, in order. */
-    statesOf(featureExternalId) {
-      return calls.states
-        .filter((state) => state.featureExternalId === featureExternalId)
-        .map((state) => state.value);
-    },
-  };
+  });
+  await gladys.connect();
+  return gladys;
+}
+
+/**
+ * Values Gladys received for one feature, in order: the `state`, or the
+ * `text` of a text state. `gladys.fake.lastState()` only gives the last one.
+ */
+export function statesOf(gladys, featureExternalId) {
+  return gladys.fake.states
+    .filter((state) => state.device_feature_external_id === featureExternalId)
+    .map((state) => state.text ?? state.state);
 }
 
 /**

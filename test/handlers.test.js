@@ -1,14 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { GladysApiError } from '@gladysassistant/integration-sdk';
 import { createHandlers, SHUTDOWN_TIMEOUT_MS } from '../src/handlers.js';
 import {
+  connectFakeGladys,
   makeFakeClient,
   makeFakeDevice,
-  makeFakeGladys,
   makeFakeSleep,
   makeFakeTimer,
   makeJpeg,
   silentLogger,
+  statesOf,
 } from './helpers.js';
 
 const ACCOUNT = { email: 'me@example.com', password: 'secret', country: 'FR' };
@@ -26,8 +28,8 @@ function makeDevices() {
   ];
 }
 
-function setup({ config = ACCOUNT, loginResults, devices = makeDevices() } = {}) {
-  const gladys = makeFakeGladys({ config, created: devices.map((dev) => dev.sn) });
+async function setup({ config = ACCOUNT, loginResults, devices = makeDevices() } = {}) {
+  const gladys = await connectFakeGladys({ config, created: devices.map((dev) => dev.sn) });
   const clients = [];
   const scheduleTimer = makeFakeTimer();
   const handlers = createHandlers({
@@ -46,20 +48,20 @@ function setup({ config = ACCOUNT, loginResults, devices = makeDevices() } = {})
 }
 
 test('at startup, the supported devices are published with their states', async () => {
-  const { gladys, handlers, clients } = setup();
+  const { gladys, handlers, clients } = await setup();
   await handlers.gladysConnected();
 
   assert.equal(clients.length, 1);
   assert.equal(clients[0].config.email, 'me@example.com');
-  const discovered = gladys.calls.discovered.at(-1);
+  const discovered = gladys.fake.discoveredDevices;
   assert.deepEqual(
     discovered.map((device) => device.name),
     ['Front door', 'Lock'],
     'the vacuum is not supported',
   );
-  assert.deepEqual(gladys.statesOf('ext:eufy-test:eufy:D1:battery'), [55]);
-  assert.deepEqual(gladys.statesOf('ext:eufy-test:eufy:L1:lock'), [1]);
-  assert.equal(gladys.lastStatus().connected, true);
+  assert.deepEqual(statesOf(gladys, 'ext:eufy-test:eufy:D1:battery'), [55]);
+  assert.deepEqual(statesOf(gladys, 'ext:eufy-test:eufy:L1:lock'), [1]);
+  assert.equal(gladys.fake.connectionStatus.connected, true);
 });
 
 test('a device the mapping chokes on does not hide the others', async () => {
@@ -75,68 +77,70 @@ test('a device the mapping chokes on does not hide the others', async () => {
     },
   });
   devices.unshift(makeFakeDevice({ sn: 'S1', name: 'Door', capabilities: ['contact'], values }));
-  const { gladys, handlers } = setup({ devices });
+  const { gladys, handlers } = await setup({ devices });
   await handlers.gladysConnected();
   assert.deepEqual(
-    gladys.calls.discovered.at(-1).map((device) => device.name),
+    gladys.fake.discoveredDevices.map((device) => device.name),
     ['Door', 'Lock'],
   );
-  assert.deepEqual(gladys.statesOf('ext:eufy-test:eufy:L1:lock'), [1]);
-  assert.equal(gladys.lastStatus().connected, true);
+  assert.deepEqual(statesOf(gladys, 'ext:eufy-test:eufy:L1:lock'), [1]);
+  assert.equal(gladys.fake.connectionStatus.connected, true);
 });
 
-test('Gladys refusing the devices is no eufy failure: they are published again later', async () => {
-  const { gladys, handlers, clients, scheduleTimer } = setup();
-  const publish = gladys.publishDiscoveredDevices;
-  gladys.publishDiscoveredDevices = async () => {
-    throw Object.assign(new Error('Too many requests'), {
-      name: 'GladysApiError',
-      status: 429,
-    });
-  };
+test('Gladys refusing the devices is no eufy failure: they are published again later', async (t) => {
+  const { gladys, handlers, clients, scheduleTimer } = await setup();
+  const refused = t.mock.method(gladys, 'publishDiscoveredDevices', async () => {
+    throw new GladysApiError(429, 'TOO_MANY_REQUESTS', 'Too many requests');
+  });
   await handlers.gladysConnected();
-  assert.equal(gladys.lastStatus().connected, true, 'not "the eufy account is blocked"');
+  assert.equal(gladys.fake.connectionStatus.connected, true, 'not "the eufy account is blocked"');
   assert.equal(clients[0].calls.login, 1);
   assert.equal(scheduleTimer.active()[0].delayMs, 60_000);
 
-  gladys.publishDiscoveredDevices = publish;
+  refused.mock.restore();
   await scheduleTimer.runAll();
-  assert.equal(gladys.calls.discovered.length, 1);
+  assert.equal(gladys.fake.bodies('POST', '/discovered_device').length, 1);
   assert.equal(clients[0].calls.login, 1);
 });
 
 test('an incomplete configuration asks for the account', async () => {
-  const { gladys, handlers, clients } = setup({ config: { email: 'me@example.com' } });
+  const { gladys, handlers, clients } = await setup({ config: { email: 'me@example.com' } });
   await handlers.gladysConnected();
   assert.equal(clients.length, 0);
-  assert.equal(gladys.lastStatus().connected, false);
-  assert.match(gladys.lastStatus().message.fr, /mot de passe/);
+  assert.equal(gladys.fake.connectionStatus.connected, false);
+  assert.match(gladys.fake.connectionStatus.message.fr, /mot de passe/);
 });
 
 test('an invalid country is named in the status, without any login', async () => {
-  const { gladys, handlers, clients } = setup({ config: { ...ACCOUNT, country: 'Germany' } });
+  const { gladys, handlers, clients } = await setup({ config: { ...ACCOUNT, country: 'Germany' } });
   await handlers.gladysConnected();
   assert.equal(clients.length, 0);
-  assert.equal(gladys.lastStatus().connected, false);
-  assert.match(gladys.lastStatus().message.fr, /« GERMANY » n’est pas un code à 2 lettres/);
+  assert.equal(gladys.fake.connectionStatus.connected, false);
+  assert.match(
+    gladys.fake.connectionStatus.message.fr,
+    /« GERMANY » n’est pas un code à 2 lettres/,
+  );
 });
 
 test('the verification code typed in the form completes the login', async () => {
-  const { gladys, handlers, clients } = setup({
+  const { gladys, handlers, clients } = await setup({
     loginResults: [{ status: '2fa', method: 'email' }, { status: 'ok' }],
   });
   await handlers.gladysConnected();
-  assert.match(gladys.lastStatus().message.fr, /Code de vérification/);
+  assert.match(gladys.fake.connectionStatus.message.fr, /Code de vérification/);
 
   await handlers.configUpdated({ ...ACCOUNT, verification_code: ' 482913 ' });
   assert.deepEqual(clients[0].calls.submitVerifyCode, ['482913']);
   assert.equal(clients.length, 1, 'the pending login is continued');
-  assert.deepEqual(gladys.calls.setConfig.at(-1), { verification_code: '', captcha_answer: '' });
-  assert.equal(gladys.lastStatus().connected, true);
+  assert.deepEqual(gladys.fake.bodies('POST', '/config').at(-1).config, {
+    verification_code: '',
+    captcha_answer: '',
+  });
+  assert.equal(gladys.fake.connectionStatus.connected, true);
 });
 
 test('the captcha answer typed in the form is handed to the login', async () => {
-  const { handlers, clients } = setup({
+  const { handlers, clients } = await setup({
     loginResults: [
       { status: 'captcha', image: 'data:image/png;base64,AA==', retry: false },
       { status: 'ok' },
@@ -148,7 +152,7 @@ test('the captcha answer typed in the form is handed to the login', async () => 
 });
 
 test('saving the form without a new code asks eufy for a new one', async () => {
-  const { gladys, handlers, clients } = setup({
+  const { gladys, handlers, clients } = await setup({
     loginResults: [{ status: '2fa' }, { status: '2fa' }],
   });
   await handlers.gladysConnected();
@@ -159,7 +163,10 @@ test('saving the form without a new code asks eufy for a new one', async () => {
   assert.deepEqual(clients[0].calls.submitVerifyCode, ['111111']);
   assert.equal(clients.length, 2);
   assert.deepEqual(clients[1].calls.submitVerifyCode, []);
-  assert.deepEqual(gladys.calls.setConfig.at(-1), { verification_code: '', captcha_answer: '' });
+  assert.deepEqual(gladys.fake.bodies('POST', '/config').at(-1).config, {
+    verification_code: '',
+    captcha_answer: '',
+  });
 
   // A Gladys reconnection while a code is awaited asks for nothing.
   await handlers.gladysConnected();
@@ -167,7 +174,7 @@ test('saving the form without a new code asks eufy for a new one', async () => {
 });
 
 test('saving the form without an answer while a captcha is awaited asks for a new one', async () => {
-  const { handlers, clients } = setup({
+  const { handlers, clients } = await setup({
     loginResults: [{ status: 'captcha', image: 'data:image/png;base64,AA==', retry: false }],
   });
   await handlers.gladysConnected();
@@ -176,7 +183,7 @@ test('saving the form without an answer while a captcha is awaited asks for a ne
 });
 
 test('a code typed while no login waits for one is ignored', async () => {
-  const { handlers, clients } = setup();
+  const { handlers, clients } = await setup();
   await handlers.gladysConnected();
   await handlers.configUpdated({ ...ACCOUNT, verification_code: '123456' });
   assert.deepEqual(clients[0].calls.submitVerifyCode, []);
@@ -184,18 +191,21 @@ test('a code typed while no login waits for one is ignored', async () => {
 });
 
 test('a new password starts a new login, and drops the stale answers', async () => {
-  const { gladys, handlers, clients } = setup();
+  const { gladys, handlers, clients } = await setup();
   await handlers.gladysConnected();
   await handlers.configUpdated({ ...ACCOUNT, password: 'new', verification_code: '999' });
   assert.equal(clients.length, 2);
   assert.equal(clients[0].calls.disconnect, 1);
   assert.equal(clients[1].config.password, 'new');
   assert.deepEqual(clients[1].calls.submitVerifyCode, []);
-  assert.deepEqual(gladys.calls.setConfig.at(-1), { verification_code: '', captcha_answer: '' });
+  assert.deepEqual(gladys.fake.bodies('POST', '/config').at(-1).config, {
+    verification_code: '',
+    captcha_answer: '',
+  });
 });
 
 test('saving the form again after a refused password retries the login', async () => {
-  const { handlers, clients } = setup({
+  const { handlers, clients } = await setup({
     loginResults: [Object.assign(new Error('Wrong password'), { status: 401 })],
   });
   await handlers.gladysConnected();
@@ -204,59 +214,59 @@ test('saving the form again after a refused password retries the login', async (
 });
 
 test('clearing the email stops the session', async () => {
-  const { gladys, handlers, clients } = setup();
+  const { gladys, handlers, clients } = await setup();
   await handlers.gladysConnected();
   await handlers.configUpdated({ ...ACCOUNT, email: '' });
   assert.equal(clients[0].calls.disconnect, 1);
-  assert.equal(gladys.lastStatus().connected, false);
+  assert.equal(gladys.fake.connectionStatus.connected, false);
 });
 
 test('a Gladys reconnection republishes the states without a new login', async () => {
-  const { gladys, handlers, clients } = setup();
+  const { gladys, handlers, clients } = await setup();
   await handlers.gladysConnected();
   await handlers.gladysConnected();
   assert.equal(clients.length, 1);
   assert.equal(clients[0].calls.login, 1);
-  assert.deepEqual(gladys.statesOf('ext:eufy-test:eufy:D1:battery'), [55, 55]);
+  assert.deepEqual(statesOf(gladys, 'ext:eufy-test:eufy:D1:battery'), [55, 55]);
 });
 
 test('a created device gets its states again', async () => {
-  const { gladys, handlers } = setup();
+  const { gladys, handlers } = await setup();
   await handlers.gladysConnected();
   await handlers.deviceCreated({
     external_id: 'ext:eufy-test:eufy:D1',
     params: [{ name: 'serial_number', value: 'D1' }],
   });
-  assert.deepEqual(gladys.statesOf('ext:eufy-test:eufy:D1:battery'), [55, 55]);
+  assert.deepEqual(statesOf(gladys, 'ext:eufy-test:eufy:D1:battery'), [55, 55]);
   await handlers.deviceCreated({ external_id: 'other', params: [] });
 });
 
 test('an updated device gets its unchanged states again, for the features the update added', async () => {
   const devices = makeDevices();
   devices[0].values.charging = true;
-  const { gladys, handlers, clients } = setup({ devices });
+  const { gladys, handlers, clients } = await setup({ devices });
   await handlers.gladysConnected();
   // Gladys dropped this one: the device did not have the feature yet.
-  assert.deepEqual(gladys.statesOf('ext:eufy-test:eufy:D1:charging'), [1]);
+  assert.deepEqual(statesOf(gladys, 'ext:eufy-test:eufy:D1:charging'), [1]);
 
   // Nothing changed: a state event publishes nothing.
   await clients[0].fire('propertyChanged', { deviceSn: 'D1' });
-  assert.deepEqual(gladys.statesOf('ext:eufy-test:eufy:D1:charging'), [1]);
+  assert.deepEqual(statesOf(gladys, 'ext:eufy-test:eufy:D1:charging'), [1]);
 
   // The user updates the device from the discovery: the feature now exists.
   await handlers.deviceUpdated({
     external_id: 'ext:eufy-test:eufy:D1',
     params: [{ name: 'serial_number', value: 'D1' }],
   });
-  assert.deepEqual(gladys.statesOf('ext:eufy-test:eufy:D1:charging'), [1, 1]);
-  assert.deepEqual(gladys.statesOf('ext:eufy-test:eufy:D1:battery'), [55, 55]);
+  assert.deepEqual(statesOf(gladys, 'ext:eufy-test:eufy:D1:charging'), [1, 1]);
+  assert.deepEqual(statesOf(gladys, 'ext:eufy-test:eufy:D1:battery'), [55, 55]);
   await handlers.deviceUpdated({ external_id: 'other', params: [] });
 });
 
 test('onGetImage answers the last thumbnail of the camera', async () => {
   const devices = makeDevices();
   devices[0].snapshots = [await makeJpeg()];
-  const { handlers } = setup({ devices });
+  const { handlers } = await setup({ devices });
   await handlers.gladysConnected();
   const camera = { params: [{ name: 'serial_number', value: 'D1' }] };
   assert.ok((await handlers.getImage(camera)).startsWith('image/jpg;base64,'));
@@ -273,7 +283,7 @@ test('onGetImage waits for a thumbnail still downloading', async () => {
   const devices = makeDevices();
   const pending = () => Object.assign(new Error('downloading'), { reason: 'pending' });
   devices[0].snapshots = [pending(), pending(), await makeJpeg()];
-  const { handlers } = setup({ devices });
+  const { handlers } = await setup({ devices });
   await handlers.gladysConnected();
   const camera = { params: [{ name: 'serial_number', value: 'D1' }] };
   assert.ok((await handlers.getImage(camera)).startsWith('image/jpg;base64,'));
@@ -283,24 +293,24 @@ test('onGetImage waits for a thumbnail still downloading', async () => {
 });
 
 test('a scan republishes the devices, only once connected', async () => {
-  const { gladys, handlers } = setup({ loginResults: [{ status: '2fa' }] });
+  const { gladys, handlers } = await setup({ loginResults: [{ status: '2fa' }] });
   await handlers.gladysConnected();
   await handlers.scan();
-  assert.equal(gladys.calls.discovered.length, 0);
+  assert.equal(gladys.fake.bodies('POST', '/discovered_device').length, 0);
 });
 
 test('device list changes trigger one debounced refresh', async () => {
-  const { gladys, handlers, clients, scheduleTimer } = setup();
+  const { gladys, handlers, clients, scheduleTimer } = await setup();
   await handlers.gladysConnected();
-  const before = gladys.calls.discovered.length;
+  const before = gladys.fake.bodies('POST', '/discovered_device').length;
   await clients[0].fire('deviceAdded', {});
   await clients[0].fire('deviceCapabilities', {});
   await scheduleTimer.runAll();
-  assert.equal(gladys.calls.discovered.length, before + 1);
+  assert.equal(gladys.fake.bodies('POST', '/discovered_device').length, before + 1);
 });
 
 test('the actions report the connection and dump the devices', async () => {
-  const { handlers } = setup();
+  const { handlers } = await setup();
   assert.match((await handlers.actions.test_connection()).fr, /Non connecté/);
   assert.match((await handlers.actions.dump_devices()).en, /Not connected/);
   await handlers.gladysConnected();
@@ -309,7 +319,7 @@ test('the actions report the connection and dump the devices', async () => {
 });
 
 test('dump_devices reuses the devices already held', async () => {
-  const { handlers, clients } = setup();
+  const { handlers, clients } = await setup();
   await handlers.gladysConnected();
   // A new `getDevice()` would replace, in the SDK, the device the property
   // changes are announced against.
@@ -324,7 +334,7 @@ test('dump_devices reuses the devices already held', async () => {
 });
 
 test('dump_devices fetches, then holds, a device the refresh could not read', async () => {
-  const { handlers, clients } = setup({
+  const { handlers, clients } = await setup({
     loginResults: [{ status: '2fa' }, { status: 'ok' }],
   });
   await handlers.gladysConnected();
@@ -349,7 +359,7 @@ test('dump_devices fetches, then holds, a device the refresh could not read', as
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
 test('a refresh keeps the devices reachable, and never fetches a held device again', async () => {
-  const { gladys, handlers, clients, scheduleTimer } = setup();
+  const { gladys, handlers, clients, scheduleTimer } = await setup();
   await handlers.gladysConnected();
   const client = clients[0];
   const getDevices = client.getDevices;
@@ -364,7 +374,7 @@ test('a refresh keeps the devices reachable, and never fetches a held device aga
   const dump = handlers.actions.dump_devices();
   await flush();
   await client.fire('doorbellPress', { deviceSn: 'D1' });
-  assert.equal(gladys.calls.sceneEvents.length, 1, 'the doorbell is still known');
+  assert.equal(gladys.fake.sceneEvents.length, 1, 'the doorbell is still known');
   release();
   await Promise.all([scan, test, dump]);
   await client.fire('deviceCapabilities', {});
@@ -380,7 +390,7 @@ test('a refresh keeps the devices reachable, and never fetches a held device aga
 });
 
 test('configuration changes run one at a time: one client per account', async () => {
-  const { gladys, handlers, clients } = setup();
+  const { gladys, handlers, clients } = await setup();
   await handlers.gladysConnected();
   let release;
   clients[0].disconnect = async () => {
@@ -388,7 +398,7 @@ test('configuration changes run one at a time: one client per account', async ()
     await new Promise((resolve) => (release = resolve));
   };
   const config = { ...ACCOUNT, password: 'new' };
-  gladys.config = config;
+  gladys.fake.config = config;
   const saved = handlers.configUpdated(config);
   // Gladys reconnects while the previous client is still closing.
   const reconnected = handlers.gladysConnected();
@@ -401,14 +411,14 @@ test('configuration changes run one at a time: one client per account', async ()
 });
 
 test('shutdown closes the eufy session', async () => {
-  const { handlers, clients } = setup();
+  const { handlers, clients } = await setup();
   await handlers.gladysConnected();
   await handlers.shutdown();
   assert.equal(clients[0].calls.disconnect, 1);
 });
 
 test('shutdown gives up on a connection that does not close', async () => {
-  const { handlers, clients, scheduleTimer } = setup();
+  const { handlers, clients, scheduleTimer } = await setup();
   await handlers.gladysConnected();
   clients[0].disconnect = () => new Promise(() => {});
   const shutdown = handlers.shutdown();
@@ -420,7 +430,7 @@ test('shutdown gives up on a connection that does not close', async () => {
 });
 
 test('setValue is routed to the device, unlocking once the configuration allows it', async () => {
-  const { handlers, gladys, clients } = setup();
+  const { handlers, gladys, clients } = await setup();
   await handlers.gladysConnected();
   const unlock = () =>
     handlers.setValue(
@@ -433,5 +443,5 @@ test('setValue is routed to the device, unlocking once the configuration allows 
   await handlers.configUpdated({ ...ACCOUNT, allow_unlock: true });
   await unlock();
   assert.equal(clients.length, 1, 'no new login');
-  assert.deepEqual(gladys.statesOf('ext:eufy-test:eufy:L1:lock'), [1, 0]);
+  assert.deepEqual(statesOf(gladys, 'ext:eufy-test:eufy:L1:lock'), [1, 0]);
 });

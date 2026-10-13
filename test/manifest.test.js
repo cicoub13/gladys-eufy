@@ -5,10 +5,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { createFakeGladys } from '@gladysassistant/integration-sdk/testing';
 import { DEFAULT_CONFIG } from '../src/config.js';
 import { DETECTIONS } from '../src/events.js';
 import { createHandlers } from '../src/handlers.js';
-import { makeFakeGladys, silentLogger } from './helpers.js';
+import { silentLogger } from './helpers.js';
 
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
 const manifest = JSON.parse(await read('../gladys-assistant-integration.json'));
@@ -65,7 +66,7 @@ test('the one-shot answers are optional', () => {
 
 test('every manifest action has a handler, and the reverse', () => {
   const { actions } = createHandlers({
-    gladys: makeFakeGladys(),
+    gladys: createFakeGladys({ selector: 'eufy-test' }),
     createClient: () => {
       throw new Error('not used');
     },
