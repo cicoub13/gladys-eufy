@@ -1,8 +1,10 @@
 # Intégration eufy Security pour Gladys Assistant
 
+## Présentation
+
 Intégrez vos appareils eufy Security dans Gladys : caméras, sonnettes vidéo, serrures connectées, capteurs (ouverture, mouvement, fuite, fumée, CO) et mode d'armement des HomeBase. L'intégration passe par le cloud eufy, avec la librairie [eufy-sdk](https://github.com/mega-yfue/eufy-sdk).
 
-## Fonctionnalités
+### Fonctionnalités
 
 - **Caméras et sonnettes** : l'image publiée est la miniature envoyée par eufy à chaque détection ou appui sur la sonnette. Elle s'affiche dans la boîte caméra du tableau de bord. Une scène qui envoie l'image de la caméra sur un appui sonnette attend quelques secondes son arrivée.
 - **Sonnette** : un appui passe la fonctionnalité « sonnette » à 1, puis elle revient à 0 au bout de 5 s.
@@ -13,9 +15,17 @@ Intégrez vos appareils eufy Security dans Gladys : caméras, sonnettes vidéo, 
 - **Batterie** : niveau, charge en cours, alerte de batterie faible.
 - **Scènes** : déclencheurs « Sonnette eufy pressée », « Mouvement détecté par eufy » (filtrable par personne, inconnu, véhicule ou animal), « Colis livré » et « Alarme eufy déclenchée ».
 
+### Limites
+
+- **Pas de vidéo en direct** : Gladys n'affiche que des images fixes.
+- L'image d'une caméra n'est mise à jour **qu'après un événement** (mouvement ou sonnette). Gladys la considère comme expirée au bout d'une heure.
+- La détection de fuite, de fumée et de CO dépend de ce qu'eufy remonte pour chaque modèle. Ces valeurs ne sont pas encore confirmées sur tous les appareils.
+- Si la session eufy expire (par exemple parce que le compte s'est connecté ailleurs), l'intégration se reconnecte d'elle-même. eufy peut alors redemander un code ou un captcha.
+
 ## Prérequis
 
 - **Gladys 5.1 ou supérieur.**
+- Un **accès à internet** depuis le serveur Gladys : l'intégration passe par le cloud eufy.
 - Un **compte eufy dédié** à Gladys. eufy ne garde qu'une session par compte : utiliser votre compte principal vous déconnecterait de l'application. Créez un second compte, puis partagez-lui vos appareils depuis l'application eufy Security de votre compte principal (Paramètres > Famille et invités). Donnez-lui les droits administrateur pour piloter les serrures et le mode d'armement. Connectez-vous ensuite une fois avec le compte dédié dans l'application eufy Security pour **accepter l'invitation**, puis déconnectez-vous : vous connecter plus tard avec ce compte dans l'application déconnecterait Gladys.
 
 ## Configuration
@@ -42,10 +52,4 @@ Le bouton **Tester la connexion** indique l'état et le nombre d'appareils trouv
 - **Déverrouillage ou désarmement refusé** : activez **Autoriser le déverrouillage depuis Gladys** ou **Autoriser le désarmement depuis Gladys** dans la configuration.
 - **Pas d'image de caméra, ou une image ancienne** : une image n'arrive qu'avec un événement de mouvement ou de sonnette. Une scène qui envoie l'image l'attend quelques secondes.
 - **Un appareil est absent** : utilisez **Lister les appareils bruts** et ouvrez une issue avec ce qu'elle écrit. Ce contenu comprend les numéros de série de vos appareils : anonymisez-les avant de le partager.
-
-## Limites
-
-- **Pas de vidéo en direct** : Gladys n'affiche que des images fixes.
-- L'image d'une caméra n'est mise à jour **qu'après un événement** (mouvement ou sonnette). Gladys la considère comme expirée au bout d'une heure.
-- La détection de fuite, de fumée et de CO dépend de ce qu'eufy remonte pour chaque modèle. Ces valeurs ne sont pas encore confirmées sur tous les appareils.
-- Si la session eufy expire (par exemple parce que le compte s'est connecté ailleurs), l'intégration se reconnecte d'elle-même. eufy peut alors redemander un code ou un captcha.
+- **Autre problème** : ouvrez l'onglet **Logs** de l'intégration dans Gladys : l'intégration y écrit ce qu'elle fait et le détail de chaque erreur.
