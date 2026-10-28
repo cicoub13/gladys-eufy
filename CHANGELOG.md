@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-10-28
+
+### Changed
+
+- Maintenance release: dependency and build updates, no functional change.
+
 ## [1.1.1] - 2026-10-13
 
 ### Fixed
