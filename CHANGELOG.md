@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Changed
+
+- eufy-sdk 0.5.0: commands now reach the devices behind a HomeBase S1 Pro
+  (T9000) and the T8N00 PoE station, more models are recognised (T8213,
+  T8210C, T8354, T90S0 smoke alarm...), and the realtime events are retried
+  when they fail to start.
+
 ## [1.1.2] - 2026-10-28
 
 ### Changed
