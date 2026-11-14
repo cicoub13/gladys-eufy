@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- The container image is rebuilt on a patched Alpine base (musl 1.2.6-r3,
+  zlib 1.3.2-r1, OpenSSL 3.5.9), replacing a base affected by published
+  security advisories. No functional change.
+
 ### Changed
 
 - eufy-sdk 0.5.0: commands now reach the devices behind a HomeBase S1 Pro
